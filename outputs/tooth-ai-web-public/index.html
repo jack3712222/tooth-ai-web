@@ -1,0 +1,671 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; connect-src 'self' http://127.0.0.1:8000 http://localhost:8000 https:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"
+    />
+    <meta name="referrer" content="no-referrer" />
+    <title>牙齒 AI 檢測平台</title>
+    <link rel="stylesheet" href="./styles.css?v=20260707-photos" />
+  </head>
+  <body>
+    <header class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">T</div>
+        <div>
+          <strong>Tooth AI</strong>
+          <span>DENTEX 牙齒影像工作流程</span>
+        </div>
+      </div>
+      <nav aria-label="主選單">
+        <a href="#overview" class="active" data-tab="overview">總覽</a>
+        <a href="#application" data-tab="application">1. 應用</a>
+        <a href="#data" data-tab="data">2. 資料</a>
+        <a href="#model" data-tab="model">3. 建模</a>
+        <a href="#simulation" data-tab="simulation">4. 模擬</a>
+        <a href="#analysis" data-tab="analysis">5. 分析</a>
+        <a href="#demo" data-tab="demo">Demo</a>
+      </nav>
+      <div class="header-status" aria-label="系統狀態">
+        <span id="frontendStatus" class="status-pill online">前端已載入</span>
+        <span id="apiStatus" class="status-pill checking">API 檢查中</span>
+      </div>
+    </header>
+
+    <main>
+      <section id="overview" class="hero tab-page active" data-tab-page="overview">
+        <div class="hero-copy">
+          <p class="eyebrow">DENTEX YOLOv8 Detection Dashboard</p>
+          <h1>DENTEX 牙科 X-ray 物件偵測展示網站</h1>
+          <p>
+            將 DENTEX CHALLENGE 2023 的 COCO 標註轉成 YOLO 格式，
+            並把 YOLOv8m 訓練、超參數搜尋、mAP 指標、CLI log 與 Demo 偵測結果整合成網頁介面。
+          </p>
+          <div class="hero-actions">
+            <a class="secondary" href="#simulation">查看實驗結果</a>
+            <a class="secondary" href="#demo">前往 Demo</a>
+          </div>
+          <div class="launch-panel" aria-label="系統入口">
+            <article>
+              <span>展示入口</span>
+              <strong>DENTEX 72 組結果瀏覽</strong>
+              <small>查看資料、建模、模擬與分析流程。</small>
+            </article>
+            <article>
+              <span>推論入口</span>
+              <strong>上傳 X-ray Demo</strong>
+              <small>連接本機 API 後使用 current_model.pt 推論。</small>
+            </article>
+          </div>
+        </div>
+        <div class="tooth-stage" aria-label="牙齒 AI 狀態示意">
+          <div class="tooth">
+            <div class="scan-line"></div>
+          </div>
+          <div class="floating-result">
+            <span>目前判斷</span>
+            <strong id="heroPrediction">蛀牙</strong>
+            <small id="heroConfidence">等待模型推論</small>
+          </div>
+        </div>
+      </section>
+
+      <section class="status-grid tab-page active" data-tab-page="overview" aria-label="專題狀態">
+        <article>
+          <span>資料來源</span>
+          <strong>DENTEX</strong>
+          <small>COCO JSON → YOLO format</small>
+        </article>
+        <article>
+          <span>模型</span>
+          <strong>YOLOv8m</strong>
+          <small>object detection</small>
+        </article>
+        <article>
+          <span>主要指標</span>
+          <strong id="bestAccuracy">74.93%</strong>
+          <small>Best Combo 60 Test mAP@50</small>
+        </article>
+        <article>
+          <span>訓練狀態</span>
+          <strong id="trainingState">Ready</strong>
+          <small id="epochState">epoch 0 / 100</small>
+        </article>
+      </section>
+
+      <section class="command-strip tab-page active" data-tab-page="overview" aria-label="快速操作">
+        <div>
+          <span>展示模式</span>
+          <strong>DENTEX YOLOv8m 72 組統整</strong>
+        </div>
+        <div>
+          <span>目前資料</span>
+          <strong>72 combos / 720 runs / 全部 10/10</strong>
+        </div>
+        <div class="runtime-stack">
+          <span id="modelStatus" class="runtime-pill">模型：current_model.pt</span>
+          <span id="slicerBridgeStatus" class="runtime-pill">3D Slicer：未檢查</span>
+        </div>
+        <div class="strip-actions">
+          <button id="checkSystemBtn">檢查 API</button>
+          <button id="jumpDemoBtn">快速 Demo</button>
+          <button id="exportReportBtn">匯出結果 JSON</button>
+        </div>
+      </section>
+
+      <section id="application" class="section tab-page" data-tab-page="application">
+        <div class="section-head">
+          <p class="eyebrow">Application</p>
+          <h2>應用：牙科 X-ray 病灶與智齒偵測</h2>
+        </div>
+        <div class="split">
+          <div>
+            <p>
+              本系統用於展示 DENTEX 牙科全景 X-ray 偵測專題流程。使用者可查看
+              COCO 標註轉 YOLO、資料切分、YOLOv8m 模型設定、訓練過程、評估結果，
+              並在 Demo 區上傳或選擇 X-ray 範例進行模擬偵測。
+            </p>
+            <div class="workflow">
+              <div>載入 DENTEX X-ray</div>
+              <div>COCO 轉 YOLO</div>
+              <div>Train/Test 切分</div>
+              <div>YOLOv8m 訓練</div>
+              <div>mAP 評估與 Demo</div>
+            </div>
+          </div>
+          <div class="panel">
+            <h3>偵測類別</h3>
+            <ul class="tag-list">
+              <li>cavity 蛀牙 / 齲齒</li>
+              <li>wisdom_tooth 智齒</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section id="data" class="section tab-page" data-tab-page="data">
+        <div class="section-head">
+          <p class="eyebrow">Dataset</p>
+          <h2>資料：DENTEX 資料集統計</h2>
+        </div>
+        <div class="data-layout">
+          <div class="panel">
+            <h3>資料集設定</h3>
+            <dl class="kv">
+              <div><dt>資料名稱</dt><dd>DENTEX CHALLENGE 2023</dd></div>
+              <div><dt>任務資料</dt><dd>quadrant-enumeration-disease</dd></div>
+              <div><dt>切分方式</dt><dd>Train 533 張，Test 135 張</dd></div>
+              <div><dt>偵測類別</dt><dd>cavity（蛀牙）, wisdom_tooth（阻生智齒）</dd></div>
+            </dl>
+          </div>
+          <div class="panel dataset-count-panel">
+            <h3>實際資料量</h3>
+            <div class="dataset-total">
+              <span>總影像</span>
+              <strong>668 張</strong>
+              <small>YOLO label files: 668</small>
+            </div>
+            <div class="dataset-counts">
+              <div><span>蛀牙標註</span><strong>2,767 顆</strong></div>
+              <div><span>阻生智齒標註</span><strong>604 顆</strong></div>
+            </div>
+          </div>
+        </div>
+        <div class="source-overview">
+          <article class="panel source-tile">
+            <span>Dataset</span>
+            <strong>DENTEX CHALLENGE 2023</strong>
+            <p>牙科全景 X-ray 偵測資料，本站只呈現蛀牙與阻生智齒兩類。</p>
+          </article>
+          <article class="panel source-tile">
+            <span>Split</span>
+            <strong>533 / 135</strong>
+            <p>Train 533 張，Test 135 張，用於 72 組參數結果統整。</p>
+          </article>
+          <article class="panel source-tile">
+            <span>Labels</span>
+            <strong>3,371 個標註</strong>
+            <p>蛀牙 2,767 顆，阻生智齒 604 顆。</p>
+          </article>
+        </div>
+        <div class="panel data-stats">
+          <h3>Train / Test 分布</h3>
+          <div class="class-bars">
+            <div><span>Train images</span><div><b style="width: 79.8%"></b></div><strong>533</strong></div>
+            <div><span>Test images</span><div><b style="width: 20.2%"></b></div><strong>135</strong></div>
+            <div><span>Cavity objects</span><div><b style="width: 82.1%"></b></div><strong>2767</strong></div>
+            <div><span>Wisdom objects</span><div><b style="width: 17.9%"></b></div><strong>604</strong></div>
+          </div>
+          <div class="dataset-split-grid">
+            <article><span>Train 蛀牙標註</span><strong>2,197</strong><small>訓練集中的 cavity 標註數</small></article>
+            <article><span>Train 阻生智齒標註</span><strong>500</strong><small>訓練集中的 wisdom_tooth 標註數</small></article>
+            <article><span>Test 蛀牙標註</span><strong>570</strong><small>測試集中的 cavity 標註數</small></article>
+            <article><span>Test 阻生智齒標註</span><strong>104</strong><small>測試集中的 wisdom_tooth 標註數</small></article>
+          </div>
+        </div>
+        <div class="panel data-browser">
+          <div class="browser-head">
+            <div>
+              <h3>完整資料清單</h3>
+              <p id="dataBrowserSummary">載入 668 筆 DENTEX 影像索引</p>
+            </div>
+            <div class="browser-controls">
+              <input id="dataSearchInput" type="search" placeholder="搜尋影像 ID 或檔名" />
+              <select id="dataSplitFilter">
+                <option value="all">全部 split</option>
+                <option value="Train">Train</option>
+                <option value="Test">Test</option>
+              </select>
+              <select id="dataClassFilter">
+                <option value="all">全部類別</option>
+                <option value="cavity">含蛀牙</option>
+                <option value="wisdom_tooth">含阻生智齒</option>
+                <option value="both">兩類都有</option>
+              </select>
+            </div>
+          </div>
+          <div class="local-image-loader">
+            <div>
+              <strong>本機影像預覽</strong>
+              <span id="localImageStatus">已內建公開 DENTEX 縮圖；也可以選本機 images 資料夾覆蓋預覽。</span>
+            </div>
+            <label class="file-picker-button" for="dataImageFolderInput">選擇 images 資料夾</label>
+            <input id="dataImageFolderInput" class="visually-hidden" type="file" accept="image/*" multiple webkitdirectory />
+          </div>
+          <div class="data-table-wrap">
+            <table class="data-record-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>影像</th>
+                  <th>Split</th>
+                  <th>影像檔名</th>
+                  <th>蛀牙標註</th>
+                  <th>阻生智齒標註</th>
+                  <th>總標註</th>
+                </tr>
+              </thead>
+              <tbody id="dataRecordTableBody">
+                <tr><td colspan="7">資料索引載入中</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="data-pager">
+            <button id="dataPrevBtn" type="button">上一頁</button>
+            <span id="dataPageInfo">Page 1</span>
+            <button id="dataNextBtn" type="button">下一頁</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="model" class="section tab-page" data-tab-page="model">
+        <div class="section-head">
+          <p class="eyebrow">Modeling</p>
+          <h2>建模：YOLOv8m、AdamW 與超參數搜尋</h2>
+        </div>
+        <div class="model-grid">
+          <article class="panel">
+            <h3>模型</h3>
+            <p>使用 Ultralytics YOLOv8m 進行牙科 X-ray 物件偵測，輸出類別只保留 cavity（蛀牙）與 wisdom_tooth（阻生智齒）。</p>
+            <dl class="kv compact">
+              <div><dt>任務</dt><dd>Object Detection</dd></div>
+              <div><dt>輸入尺寸</dt><dd>1280</dd></div>
+              <div><dt>類別數</dt><dd>2</dd></div>
+            </dl>
+            <button id="openModelModalBtn" class="inline-action" type="button">查看模型設定</button>
+          </article>
+          <article class="panel">
+            <h3>訓練設定</h3>
+            <dl class="kv compact">
+              <div><dt>Model</dt><dd>yolov8m.pt</dd></div>
+              <div><dt>Optimizer</dt><dd>AdamW</dd></div>
+              <div><dt>imgsz</dt><dd>1280</dd></div>
+              <div><dt>Batch Size</dt><dd>8</dd></div>
+              <div><dt>Epochs</dt><dd>100</dd></div>
+              <div><dt>Scheduler</dt><dd>linear / cosine</dd></div>
+            </dl>
+          </article>
+        </div>
+        <div class="panel hyper-panel">
+          <h3>調整的超參數範圍</h3>
+          <div class="hyper-grid">
+            <article><span>box loss weight</span><strong>7.5 / 10.0</strong><small>控制框選誤差在 loss 中的權重</small></article>
+            <article><span>lr0</span><strong>0.0001 / 0.001 / 0.01</strong><small>初始 learning rate</small></article>
+            <article><span>weight_decay</span><strong>0.001 / 0.010 / 0.100</strong><small>正則化強度</small></article>
+            <article><span>momentum</span><strong>0.900 / 0.937</strong><small>AdamW 動量設定</small></article>
+            <article><span>scheduler</span><strong>linear / cosine</strong><small>學習率排程</small></article>
+            <article><span>runs</span><strong>10 runs / combo</strong><small>72 組共 720 次結果統整</small></article>
+          </div>
+          <p id="configSummary">固定訓練設定：YOLOv8m, AdamW, imgsz=1280, batch=8, epochs=100；變動參數為 box、lr0、weight_decay、momentum、scheduler。</p>
+        </div>
+        <div class="panel compare-panel">
+            <h3>72 組超參數結果 Top 5（依 Test mAP@50）</h3>
+            <table>
+            <thead><tr><th>Combo</th><th>box</th><th>lr0</th><th>weight decay</th><th>momentum</th><th>scheduler</th><th>Test mAP@50</th><th>F1</th></tr></thead>
+            <tbody>
+              <tr><td>60</td><td>10.0</td><td>0.01</td><td>0.100</td><td>0.937</td><td>cosine</td><td>0.7493</td><td>0.7138</td></tr>
+              <tr><td>53</td><td>10.0</td><td>0.01</td><td>0.100</td><td>0.900</td><td>linear</td><td>0.7484</td><td>0.7146</td></tr>
+              <tr><td>18</td><td>7.5</td><td>0.01</td><td>0.100</td><td>0.900</td><td>cosine</td><td>0.7480</td><td>0.7169</td></tr>
+              <tr><td>14</td><td>7.5</td><td>0.01</td><td>0.001</td><td>0.900</td><td>cosine</td><td>0.7477</td><td>0.7112</td></tr>
+              <tr><td>15</td><td>7.5</td><td>0.01</td><td>0.010</td><td>0.900</td><td>linear</td><td>0.7477</td><td>0.7147</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="simulation" class="section tab-page" data-tab-page="simulation">
+        <div class="section-head">
+          <p class="eyebrow">Simulation</p>
+          <h2>模擬：72 組參數結果查詢</h2>
+        </div>
+        <div class="simulation-grid">
+          <div class="panel">
+            <div class="progress-head">
+              <div>
+                <span>實驗資料</span>
+                <strong id="progressText">72 組結果</strong>
+              </div>
+              <button id="resetTrainingBtn" class="icon-btn" title="重新載入結果">↻</button>
+            </div>
+            <p class="notice">
+              此區接續建模結果，載入 Excel 重新統整後的 72 組超參數平均結果；可查詢每組參數與 mAP、Precision、Recall、F1。
+            </p>
+            <div class="control-grid compact-control">
+              <label>查詢 Combo
+                <select id="comboSelect"></select>
+              </label>
+              <label>排序方式
+                <select id="comboSort">
+                  <option value="map50" selected>Test mAP@50 高到低</option>
+                  <option value="map5095">mAP@50-95 高到低</option>
+                  <option value="f1">F1 高到低</option>
+                  <option value="precision">Precision 高到低</option>
+                  <option value="recall">Recall 高到低</option>
+                  <option value="accuracy">Accuracy 高到低</option>
+                  <option value="cavityAp50">Cavity AP@50 高到低</option>
+                  <option value="wisdomAp50">Wisdom Tooth AP@50 高到低</option>
+                  <option value="time">Avg Time 低到高</option>
+                  <option value="id">Combo ID 小到大</option>
+                </select>
+              </label>
+              <label>圖表指標
+                <select id="metricSelect">
+                  <option value="map50" selected>mAP@50</option>
+                  <option value="map5095">mAP@50-95</option>
+                  <option value="precision">Precision</option>
+                  <option value="recall">Recall</option>
+                  <option value="f1">F1</option>
+                  <option value="accuracy">Accuracy</option>
+                  <option value="cavityAp50">Cavity AP@50</option>
+                  <option value="wisdomAp50">Wisdom Tooth AP@50</option>
+                  <option value="time">Avg Time</option>
+                </select>
+              </label>
+              <label>圖表模式
+                <select id="chartMode">
+                  <option value="ranking" selected>排名圖</option>
+                  <option value="distribution">分布圖</option>
+                </select>
+              </label>
+            </div>
+            <div class="train-actions">
+              <button id="pauseTrainingBtn">依 Combo 編號</button>
+              <button id="fastTrainingBtn">依目前指標排名</button>
+            </div>
+            <div class="progress"><div id="progressBar" style="width: 100%"></div></div>
+            <div class="metrics-row">
+              <div><span>Combo</span><strong id="epochValue">60</strong></div>
+              <div><span>Runs</span><strong id="lossValue">10 / 10</strong></div>
+              <div><span id="selectedMetricLabel">mAP@50</span><strong id="accValue">0.7493</strong></div>
+            </div>
+          </div>
+          <div class="panel chart-panel">
+            <h3 id="chartTitle">72 組 mAP@50 排名圖</h3>
+            <canvas id="trainingChart" width="760" height="280"></canvas>
+            <div id="chartTooltip" class="chart-tooltip" hidden></div>
+          </div>
+        </div>
+        <div class="result-summary-grid">
+          <article class="panel result-card">
+            <span>目前查詢組合</span>
+            <strong id="selectedComboTitle">Combo 60</strong>
+            <p id="selectedComboParams">box=10.0, lr0=0.01, weight_decay=0.100, momentum=0.937, scheduler=cosine</p>
+            <dl class="combo-score-grid">
+              <div><dt>mAP@50</dt><dd id="selectedMap50">0.7493</dd></div>
+              <div><dt>mAP@50-95</dt><dd id="selectedMap5095">0.4987</dd></div>
+              <div><dt>Precision</dt><dd id="selectedPrecision">0.7016</dd></div>
+              <div><dt>Recall</dt><dd id="selectedRecall">0.7274</dd></div>
+              <div><dt>F1</dt><dd id="selectedF1">0.7138</dd></div>
+              <div><dt>Avg Time</dt><dd id="selectedTime">108.88 min</dd></div>
+            </dl>
+          </article>
+          <article class="panel result-card">
+            <span>統整結論</span>
+            <strong>最佳組合：Combo 60</strong>
+            <p>以 Test mAP@50 排名最高，代表整體偵測表現最好；Combo 53、18、14、15 也很接近，皆可列為高表現候選。</p>
+            <div id="goodComboList" class="good-combo-list"></div>
+          </article>
+          <article class="panel result-card">
+            <span>目前組合的個別類別</span>
+            <strong>Cavity / Wisdom Tooth</strong>
+            <div class="class-score-bars">
+              <div>
+                <span>Cavity AP@50</span>
+                <div><b id="cavityBar" style="width: 59.57%"></b></div>
+                <strong id="selectedCavityAp">0.5957</strong>
+              </div>
+              <div>
+                <span>Wisdom Tooth AP@50</span>
+                <div><b id="wisdomBar" style="width: 90.29%"></b></div>
+                <strong id="selectedWisdomAp">0.9029</strong>
+              </div>
+            </div>
+          </article>
+        </div>
+        <div class="panel epoch-table-panel">
+          <h3>72 組超參數平均結果</h3>
+          <table>
+            <thead><tr><th>Combo</th><th>box</th><th>lr0</th><th>weight decay</th><th>momentum</th><th>scheduler</th><th>Runs</th><th>mAP@50</th><th>mAP@50-95</th><th>Precision</th><th>Recall</th><th>F1</th><th>Accuracy</th><th>Avg Time</th><th>Cavity AP@50</th><th>Wisdom AP@50</th></tr></thead>
+            <tbody id="epochTableBody">
+              <tr><td colspan="16">Excel 72 組結果載入中</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="analysis" class="section tab-page" data-tab-page="analysis">
+        <div class="section-head">
+          <p class="eyebrow">Analysis</p>
+          <h2>分析：YOLO 評價指標定義與結果</h2>
+        </div>
+        <div class="analysis-summary-row">
+          <article><span>Best Combo</span><strong>60</strong><small>整體 mAP@50 最高</small></article>
+          <article><span>mAP@50</span><strong>74.93%</strong><small>主要偵測指標</small></article>
+          <article><span>F1</span><strong>71.38%</strong><small>Precision / Recall 平衡</small></article>
+          <article><span>類別差異</span><strong>+30.72%</strong><small>Wisdom AP@50 高於 Cavity</small></article>
+        </div>
+        <div class="analysis-grid">
+          <article class="panel metric-card">
+            <span>mAP@50</span>
+            <strong>0.7493</strong>
+            <p>IoU 門檻 0.50 下，各類別 AP 的平均值，常用來看 YOLO 偵測效果。</p>
+          </article>
+          <article class="panel metric-card">
+            <span>Precision</span>
+            <strong>0.7016</strong>
+            <p>模型框出的偵測結果中，有多少比例是真正的 cavity 或 wisdom_tooth。</p>
+          </article>
+          <article class="panel metric-card">
+            <span>Recall</span>
+            <strong>0.7274</strong>
+            <p>實際標註存在的目標中，有多少比例被 YOLO 成功偵測出來。</p>
+          </article>
+          <article class="panel metric-card">
+            <span>F1-score</span>
+            <strong>0.7138</strong>
+            <p>Precision 和 Recall 的綜合評分，程式中也有自動計算。</p>
+          </article>
+        </div>
+        <div class="panel matrix-panel">
+          <h3>偵測類別結果摘要</h3>
+          <table>
+            <thead>
+              <tr><th>Class</th><th>AP@50</th><th>Precision</th><th>Recall</th><th>F1</th></tr>
+            </thead>
+            <tbody>
+              <tr><th>Cavity</th><td>0.5957</td><td>0.5779</td><td>0.5342</td><td>0.5529</td></tr>
+              <tr><th>Wisdom Tooth</th><td>0.9029</td><td>0.8253</td><td>0.9205</td><td>0.8698</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="panel compare-panel">
+          <h3>72 組統整摘要</h3>
+          <table>
+            <thead><tr><th>項目</th><th>平均</th><th>最高</th><th>最低</th><th>標準差</th></tr></thead>
+            <tbody>
+              <tr><td>Test mAP@50</td><td>0.7121</td><td>0.7493</td><td>0.6758</td><td>0.0258</td></tr>
+              <tr><td>Test mAP@50-95</td><td>0.4859</td><td>0.5038</td><td>0.4679</td><td>0.0106</td></tr>
+              <tr><td>Test Precision</td><td>0.7101</td><td>0.7467</td><td>0.6753</td><td>0.0171</td></tr>
+              <tr><td>Test Recall</td><td>0.7038</td><td>0.7480</td><td>0.6677</td><td>0.0236</td></tr>
+              <tr><td>Test F1</td><td>0.7059</td><td>0.7197</td><td>0.6840</td><td>0.0117</td></tr>
+              <tr><td>Time min</td><td>76.97</td><td>421.49</td><td>34.29</td><td>63.32</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="panel formula-panel">
+          <h3>評價指標公式</h3>
+          <div class="formula-grid">
+            <div><strong>mAP@50</strong><span>mean AP at IoU 0.50</span></div>
+            <div><strong>Precision</strong><span>TP / (TP + FP)</span></div>
+            <div><strong>Recall</strong><span>TP / (TP + FN)</span></div>
+            <div><strong>F1-score</strong><span>2 x P x R / (P + R)</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="demo" class="section tab-page" data-tab-page="demo">
+        <div class="section-head">
+          <p class="eyebrow">Live Demo</p>
+          <h2>DEMO：DENTEX X-ray 模擬偵測</h2>
+        </div>
+        <div class="demo-grid">
+          <div class="panel demo-input">
+            <h3>輸入影像</h3>
+            <div id="previewBox" class="preview">
+              <div class="preview-tooth"></div>
+              <span id="previewLabel">目前選擇：蛀牙範例</span>
+            </div>
+            <label class="upload">
+              <input id="imageUpload" type="file" accept="image/png,image/jpeg,image/webp,image/bmp,image/gif,application/dicom,.dcm" />
+              上傳牙科 X-ray 圖片
+            </label>
+            <label class="api-field">API Endpoint
+              <input id="apiBaseInput" type="url" value="https://f266ef74df291e.lhr.life" />
+            </label>
+            <div class="demo-buttons">
+              <button data-demo="蛀牙" class="demo-choice selected">蛀牙</button>
+              <button data-demo="阻生智齒" class="demo-choice">阻生智齒</button>
+            </div>
+            <button id="predictBtn" class="primary full">執行推論 Demo</button>
+          </div>
+          <div class="panel demo-output">
+            <h3>推論結果</h3>
+            <div class="result-main">
+              <span>Prediction</span>
+              <strong id="predictionValue">蛀牙</strong>
+              <small id="confidenceValue">等待模型推論</small>
+            </div>
+            <div class="prob-list" id="probList"></div>
+            <div class="edit-result-panel">
+              <h4>修改結果</h4>
+              <div class="edit-controls">
+                <label>Prediction
+                  <select id="manualPredictionInput">
+                    <option>蛀牙</option>
+                    <option>阻生智齒</option>
+                  </select>
+                </label>
+                <label>Confidence
+                  <input id="manualConfidenceInput" type="number" min="0" max="100" step="1" value="0" />
+                </label>
+                <button id="applyEditBtn">套用修改</button>
+              </div>
+            </div>
+            <div class="pipeline">
+              <span class="done">imgsz 1280</span>
+              <span class="done">YOLO forward</span>
+              <span class="done">NMS</span>
+              <span id="pipelineResult">Output</span>
+            </div>
+            <div class="explain-box">
+              <h4>模型解釋 Grad-CAM 模擬</h4>
+              <div class="heatmap">
+                <div class="heat hot"></div>
+                <div class="heat warm"></div>
+                <div class="heat cool"></div>
+              </div>
+            <p id="explainText">上傳影像並執行 API 推論後，會顯示模型偵測到的蛀牙或阻生智齒結果。</p>
+            </div>
+            <div class="report-box">
+              <h4>Demo 報告</h4>
+              <dl class="kv compact">
+                <div><dt>Inference Time</dt><dd id="inferenceTime">-- ms</dd></div>
+                <div><dt>Input Size</dt><dd>1280</dd></div>
+              <div><dt>Top Detection</dt><dd id="topResult">蛀牙</dd></div>
+              </dl>
+            </div>
+          </div>
+        </div>
+        <div class="slicer-grid">
+          <div class="panel slicer-panel">
+            <div class="slicer-head">
+              <div>
+                <span>3D Slicer 風格閱片畫面</span>
+                <strong id="slicerStatus">待推論</strong>
+              </div>
+              <button id="saveDemoBtn">儲存照片資訊</button>
+            </div>
+            <div class="slicer-viewer" aria-label="3D Slicer style medical image viewer">
+              <div class="slicer-toolbar">
+                <span>Axial</span>
+                <span>Sagittal</span>
+                <span>Coronal</span>
+                <span>3D</span>
+              </div>
+              <div id="slicerScene" class="slicer-scene">
+                <div class="scan-grid"></div>
+                <div class="scan-cross horizontal"></div>
+                <div class="scan-cross vertical"></div>
+                <div id="slicerFindingBox" class="finding-box">
+                  <span id="slicerFindingLabel">等待模型推論</span>
+                </div>
+              </div>
+            </div>
+            <p class="slicer-note">此區提供類似 3D Slicer 的閱片介面；正式部署時可由後端 API 回傳 YOLO 偵測框、類別、信心指數與影像資訊。</p>
+          </div>
+          <div class="panel image-info-panel">
+            <h3>照片與推論資訊</h3>
+            <dl class="kv compact">
+              <div><dt>Image Name</dt><dd id="imageNameValue">sample-cavity.png</dd></div>
+              <div><dt>Image Type</dt><dd id="imageTypeValue">demo sample</dd></div>
+              <div><dt>Image Size</dt><dd id="imageSizeValue">--</dd></div>
+              <div><dt>Prediction</dt><dd id="savedPredictionValue">蛀牙</dd></div>
+              <div><dt>Confidence</dt><dd id="savedConfidenceValue">--</dd></div>
+              <div><dt>Saved Records</dt><dd id="recordCountValue">0</dd></div>
+            </dl>
+            <div class="record-actions">
+              <button id="downloadRecordsBtn">下載 Demo 紀錄</button>
+              <button id="clearRecordsBtn">清除紀錄</button>
+            </div>
+          </div>
+        </div>
+        <div class="panel records-panel">
+          <h3>已儲存 Demo 紀錄</h3>
+          <table>
+            <thead><tr><th>時間</th><th>照片</th><th>類型</th><th>Prediction</th><th>Confidence</th><th>Inference</th></tr></thead>
+            <tbody id="recordTableBody">
+              <tr><td colspan="6">尚未儲存 Demo 紀錄</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <div id="modelModal" class="modal-backdrop" aria-hidden="true">
+        <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modelModalTitle">
+          <button id="closeModelModalBtn" class="modal-close" type="button" aria-label="關閉">×</button>
+          <p class="eyebrow">Model Detail</p>
+          <h2 id="modelModalTitle">YOLOv8m 模型設定</h2>
+          <div class="modal-grid">
+            <div><span>Weights</span><strong>current_model.pt</strong></div>
+            <div><span>Base</span><strong>yolov8m.pt</strong></div>
+            <div><span>Optimizer</span><strong>AdamW</strong></div>
+            <div><span>Input</span><strong>1280 px</strong></div>
+            <div><span>Batch</span><strong>8</strong></div>
+            <div><span>Epochs</span><strong>100</strong></div>
+            <div><span>Classes</span><strong>cavity / wisdom_tooth</strong></div>
+            <div><span>Best Combo</span><strong>60</strong></div>
+          </div>
+          <p class="modal-note">此彈窗只列出展示與推論需要的模型資訊，不顯示本機路徑或內部轉檔流程。</p>
+        </div>
+      </div>
+
+      <div id="dataImageModal" class="modal-backdrop" aria-hidden="true">
+        <div class="modal-card image-modal-card" role="dialog" aria-modal="true" aria-labelledby="dataImageTitle">
+          <button id="closeDataImageModalBtn" class="modal-close" type="button" aria-label="關閉">×</button>
+          <p class="eyebrow">Dataset Image</p>
+          <h2 id="dataImageTitle">影像預覽</h2>
+          <img id="dataImagePreview" class="data-image-preview" alt="DENTEX 影像預覽" />
+          <div id="dataImageMeta" class="image-meta-grid"></div>
+        </div>
+      </div>
+
+    </main>
+
+    <script src="./data-records.js?v=20260707-photos"></script>
+    <script src="./app.js?v=20260707-photos"></script>
+  </body>
+</html>

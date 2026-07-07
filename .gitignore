@@ -1,0 +1,13 @@
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.log
+*.zip
+outputs/tooth-ai-web-api/.venv/
+outputs/tooth-ai-web-api/__pycache__/
+outputs/tooth-ai-web-api/backend/__pycache__/
+outputs/*.log
+work/
+.agents/
+.codex/
