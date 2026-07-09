@@ -149,6 +149,8 @@ const els = {
   closeModelModalBtn: document.querySelector("#closeModelModalBtn"),
   archSimpleBtn: document.querySelector("#archSimpleBtn"),
   archFullBtn: document.querySelector("#archFullBtn"),
+  expandParamBtn: document.querySelector("#expandParamBtn"),
+  collapseParamBtn: document.querySelector("#collapseParamBtn"),
   simpleArch: document.querySelector("#simpleArch"),
   fullArch: document.querySelector("#fullArch"),
   dataImageModal: document.querySelector("#dataImageModal"),
@@ -346,6 +348,12 @@ function setArchitectureMode(mode) {
   if (els.fullArch) els.fullArch.hidden = !full;
   els.archSimpleBtn?.classList.toggle("active", !full);
   els.archFullBtn?.classList.toggle("active", full);
+}
+
+function setParamGroups(open) {
+  document.querySelectorAll(".param-group").forEach((group) => {
+    group.open = open;
+  });
 }
 
 function recordImageName(record) {
@@ -1454,6 +1462,8 @@ els.openModelModalBtn?.addEventListener("click", openModelModal);
 els.closeModelModalBtn?.addEventListener("click", closeModelModal);
 els.archSimpleBtn?.addEventListener("click", () => setArchitectureMode("simple"));
 els.archFullBtn?.addEventListener("click", () => setArchitectureMode("full"));
+els.expandParamBtn?.addEventListener("click", () => setParamGroups(true));
+els.collapseParamBtn?.addEventListener("click", () => setParamGroups(false));
 els.modelModal?.addEventListener("click", (event) => {
   if (event.target === els.modelModal) closeModelModal();
 });

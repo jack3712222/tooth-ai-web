@@ -356,26 +356,64 @@
             <article><span>輸出類別</span><strong>2 classes</strong><small>cavity / wisdom_tooth</small></article>
           </div>
           <div id="simpleArch" class="architecture-diagram simple-architecture">
-            <div class="arch-node"><span>Input</span><strong>OPG X-ray</strong><small>imgsz 1280</small></div>
-            <div class="arch-arrow">→</div>
-            <div class="arch-node"><span>Backbone</span><strong>Conv + C2f + SPPF</strong><small>feature extraction</small></div>
-            <div class="arch-arrow">→</div>
-            <div class="arch-node"><span>Neck</span><strong>FPN / PAN style fusion</strong><small>P3, P4, P5</small></div>
-            <div class="arch-arrow">→</div>
-            <div class="arch-node"><span>Detect Head</span><strong>Anchor-free split head</strong><small>2 disease classes</small></div>
+            <div class="arch-flow">
+              <div class="arch-node input-node">
+                <span>01 Input</span>
+                <strong>OPG X-ray</strong>
+                <small>imgsz 1280</small>
+              </div>
+              <div class="arch-connector"></div>
+              <div class="arch-node backbone-node">
+                <span>02 Backbone</span>
+                <strong>Conv + C2f + SPPF</strong>
+                <small>抽取牙科影像特徵</small>
+              </div>
+              <div class="arch-connector"></div>
+              <div class="arch-node neck-node">
+                <span>03 Neck</span>
+                <strong>FPN / PAN feature fusion</strong>
+                <small>融合 P3、P4、P5 尺度</small>
+              </div>
+              <div class="arch-connector"></div>
+              <div class="arch-node detect-node">
+                <span>04 Detect Head</span>
+                <strong>Box + Class + Confidence</strong>
+                <small>cavity / wisdom_tooth</small>
+              </div>
+            </div>
           </div>
           <div id="fullArch" class="architecture-diagram full-architecture" hidden>
-            <div class="arch-lane">
-              <h4>Backbone</h4>
-              <div>Conv P1/2</div><div>Conv P2/4</div><div>C2f blocks</div><div>Conv P3/8</div><div>C2f blocks</div><div>Conv P4/16</div><div>C2f blocks</div><div>Conv P5/32</div><div>C2f + SPPF</div>
+            <div class="arch-column">
+              <h4>Backbone 特徵抽取</h4>
+              <div class="arch-step">01 Conv P1/2</div>
+              <div class="arch-step">02 Conv P2/4</div>
+              <div class="arch-step">03 C2f</div>
+              <div class="arch-step">04 Conv P3/8 + C2f</div>
+              <div class="arch-step">05 Conv P4/16 + C2f</div>
+              <div class="arch-step">06 Conv P5/32 + C2f + SPPF</div>
             </div>
-            <div class="arch-lane">
-              <h4>Neck / Feature Fusion</h4>
-              <div>Upsample</div><div>Concat P4</div><div>C2f</div><div>Upsample</div><div>Concat P3</div><div>C2f small</div><div>Downsample</div><div>C2f medium</div><div>Downsample + C2f large</div>
+            <div class="arch-column arch-column-middle">
+              <h4>Neck 多尺度融合</h4>
+              <div class="scale-branch"><span>P5 → Upsample → Concat P4</span><b></b></div>
+              <div class="scale-branch"><span>P4 → Upsample → Concat P3</span><b></b></div>
+              <div class="scale-branch"><span>P3 → Downsample → P4</span><b></b></div>
+              <div class="scale-branch"><span>P4 → Downsample → P5</span><b></b></div>
+              <div class="arch-step">C2f feature refinement</div>
             </div>
-            <div class="arch-lane">
-              <h4>Detect</h4>
-              <div>P3/8 small targets</div><div>P4/16 medium targets</div><div>P5/32 large targets</div><div>Class logits</div><div>Box regression</div><div>Confidence scores</div><div>cavity</div><div>wisdom_tooth</div>
+            <div class="arch-column">
+              <h4>Detect Head 輸出</h4>
+              <div class="detect-scales">
+                <div><strong>P3/8</strong><span>small target</span></div>
+                <div><strong>P4/16</strong><span>medium target</span></div>
+                <div><strong>P5/32</strong><span>large target</span></div>
+              </div>
+              <div class="arch-output-grid">
+                <div>Box regression</div>
+                <div>Class logits</div>
+                <div>Confidence</div>
+                <div>cavity</div>
+                <div>wisdom_tooth</div>
+              </div>
             </div>
           </div>
           <div class="model-detail-grid">
@@ -390,68 +428,92 @@
           </div>
           <div class="hyperparameter-catalog">
             <div class="catalog-head">
-              <h4>YOLO 訓練可設定超參數</h4>
-              <p>下表依 Ultralytics Train 文件整理，並用「本次搜尋」標記你實驗中實際掃描的欄位；其他欄位是 YOLO 訓練仍可設定，但本次固定或未調整。</p>
+              <div>
+                <h4>YOLO / AdamW 超參數總表</h4>
+                <p>依你的需求分成訓練、資料、優化器、模型四類。每個分類可展開或收合；「使用預設」表示本次沒有另外設定，採用 Ultralytics 或 PyTorch 預設。</p>
+              </div>
+              <div class="catalog-actions">
+                <button id="expandParamBtn" type="button">全部展開</button>
+                <button id="collapseParamBtn" type="button">全部收合</button>
+              </div>
             </div>
-            <div class="catalog-table-wrap">
-              <table class="catalog-table">
-                <thead>
-                  <tr><th>類別</th><th>超參數</th><th>官方預設/常見值</th><th>本專案設定</th><th>狀態</th></tr>
-                </thead>
-                <tbody>
-                  <tr><td>模型/資料</td><td>model</td><td>.pt / .yaml</td><td>YOLOv8m / current_model.pt</td><td><span class="tag fixed">固定</span></td></tr>
-                  <tr><td>模型/資料</td><td>data</td><td>dataset yaml</td><td>dental_data.yaml / DENTEX</td><td><span class="tag fixed">固定</span></td></tr>
-                  <tr><td>訓練長度</td><td>epochs</td><td>100</td><td>100</td><td><span class="tag fixed">固定</span></td></tr>
-                  <tr><td>訓練長度</td><td>patience</td><td>100</td><td>未作為搜尋欄位</td><td><span class="tag unused">未搜尋</span></td></tr>
-                  <tr><td>批次/影像</td><td>batch</td><td>16</td><td>8</td><td><span class="tag fixed">固定</span></td></tr>
-                  <tr><td>批次/影像</td><td>imgsz</td><td>640</td><td>1280</td><td><span class="tag fixed">固定</span></td></tr>
-                  <tr><td>訓練環境</td><td>device</td><td>auto / GPU / CPU</td><td>本機訓練環境</td><td><span class="tag fixed">固定</span></td></tr>
-                  <tr><td>訓練環境</td><td>workers</td><td>8</td><td>未作為搜尋欄位</td><td><span class="tag unused">未搜尋</span></td></tr>
-                  <tr><td>初始化</td><td>pretrained</td><td>True</td><td>YOLOv8m pretrained / current weights</td><td><span class="tag fixed">固定</span></td></tr>
-                  <tr><td>優化器</td><td>optimizer</td><td>auto / SGD / Adam / AdamW...</td><td>AdamW</td><td><span class="tag fixed">固定</span></td></tr>
-                  <tr><td>優化器</td><td>lr0</td><td>0.01；Adam 類常用 0.001</td><td>0.0001 / 0.001 / 0.01</td><td><span class="tag searched">本次搜尋</span></td></tr>
-                  <tr><td>優化器</td><td>lrf</td><td>0.01</td><td>未作為搜尋欄位</td><td><span class="tag unused">未搜尋</span></td></tr>
-                  <tr><td>優化器</td><td>momentum</td><td>0.937</td><td>0.900 / 0.937</td><td><span class="tag searched">本次搜尋</span></td></tr>
-                  <tr><td>優化器</td><td>weight_decay</td><td>0.0005</td><td>0.001 / 0.010 / 0.100</td><td><span class="tag searched">本次搜尋</span></td></tr>
-                  <tr><td>學習率排程</td><td>cos_lr / scheduler</td><td>False</td><td>linear / cosine</td><td><span class="tag searched">本次搜尋</span></td></tr>
-                  <tr><td>Warmup</td><td>warmup_epochs</td><td>3.0</td><td>未作為搜尋欄位</td><td><span class="tag unused">未搜尋</span></td></tr>
-                  <tr><td>Warmup</td><td>warmup_momentum</td><td>0.8</td><td>未作為搜尋欄位</td><td><span class="tag unused">未搜尋</span></td></tr>
-                  <tr><td>Warmup</td><td>warmup_bias_lr</td><td>0.1</td><td>未作為搜尋欄位</td><td><span class="tag unused">未搜尋</span></td></tr>
-                  <tr><td>Loss</td><td>box</td><td>7.5</td><td>7.5 / 10.0</td><td><span class="tag searched">本次搜尋</span></td></tr>
-                  <tr><td>Loss</td><td>cls</td><td>0.5</td><td>未作為搜尋欄位</td><td><span class="tag unused">未搜尋</span></td></tr>
-                  <tr><td>Loss</td><td>dfl</td><td>1.5</td><td>未作為搜尋欄位</td><td><span class="tag unused">未搜尋</span></td></tr>
-                  <tr><td>Augmentation</td><td>hsv_h / hsv_s / hsv_v</td><td>0.015 / 0.7 / 0.4</td><td>未作為搜尋欄位</td><td><span class="tag unused">未搜尋</span></td></tr>
-                  <tr><td>Augmentation</td><td>degrees / translate / scale / shear / perspective</td><td>0 / 0.1 / 0.5 / 0 / 0</td><td>未作為搜尋欄位</td><td><span class="tag unused">未搜尋</span></td></tr>
-                  <tr><td>Augmentation</td><td>flipud / fliplr / mosaic / mixup / cutmix</td><td>0 / 0.5 / 1.0 / 0 / 0</td><td>未作為搜尋欄位</td><td><span class="tag unused">未搜尋</span></td></tr>
-                  <tr><td>驗證/輸出</td><td>val / plots / save / save_period</td><td>True / True / True / -1</td><td>保留訓練結果與圖表</td><td><span class="tag fixed">固定</span></td></tr>
-                  <tr><td>其他</td><td>seed / deterministic / amp / freeze</td><td>0 / True / True / None</td><td>未作為搜尋欄位</td><td><span class="tag unused">未搜尋</span></td></tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-          <div class="hyperparameter-catalog">
-            <div class="catalog-head">
-              <h4>AdamW optimizer 參數</h4>
-              <p>AdamW 是 PyTorch optimizer；Ultralytics 會把 YOLO 訓練參數映射到 optimizer。此處分成 PyTorch AdamW 原生參數，以及本專案實際在 YOLO 設定中可見/有調整的欄位。</p>
-            </div>
-            <div class="catalog-table-wrap">
-              <table class="catalog-table">
-                <thead>
-                  <tr><th>AdamW 參數</th><th>PyTorch 預設</th><th>YOLO 對應/本專案</th><th>說明</th></tr>
-                </thead>
-                <tbody>
-                  <tr><td>params</td><td>模型參數</td><td>YOLOv8m trainable weights</td><td>要被最佳化的模型權重。</td></tr>
-                  <tr><td>lr</td><td>0.001</td><td>lr0：0.0001 / 0.001 / 0.01</td><td>學習率，本次有搜尋。</td></tr>
-                  <tr><td>betas</td><td>(0.9, 0.999)</td><td>momentum 對應 beta1：0.900 / 0.937</td><td>一階/二階動量係數；YOLO 文件說 momentum 對 Adam 類為 beta1。</td></tr>
-                  <tr><td>eps</td><td>1e-8</td><td>未另外設定</td><td>數值穩定項。</td></tr>
-                  <tr><td>weight_decay</td><td>0.01</td><td>0.001 / 0.010 / 0.100</td><td>AdamW 的 decoupled weight decay，本次有搜尋。</td></tr>
-                  <tr><td>amsgrad</td><td>False</td><td>未另外設定</td><td>是否使用 AMSGrad 變體。</td></tr>
-                  <tr><td>maximize</td><td>False</td><td>未另外設定</td><td>一般訓練是最小化 loss。</td></tr>
-                  <tr><td>foreach / fused</td><td>None</td><td>由 PyTorch/環境決定</td><td>影響 optimizer 實作效能，不是本次搜尋欄位。</td></tr>
-                  <tr><td>capturable / differentiable</td><td>False / False</td><td>未另外設定</td><td>圖捕捉或可微分 optimizer 設定。</td></tr>
-                </tbody>
-              </table>
-            </div>
+            <details class="param-group" open>
+              <summary><span>訓練超參數</span><small>training schedule, loss, output</small></summary>
+              <div class="catalog-table-wrap">
+                <table class="catalog-table">
+                  <thead><tr><th>項次</th><th>超參數</th><th>官方預設/常見值</th><th>本專案設定</th><th>狀態</th></tr></thead>
+                  <tbody>
+                    <tr><td>1</td><td>epochs</td><td>100</td><td>100</td><td><span class="tag fixed">固定</span></td></tr>
+                    <tr><td>2</td><td>patience</td><td>100</td><td>使用預設</td><td><span class="tag defaulted">使用預設</span></td></tr>
+                    <tr><td>3</td><td>batch</td><td>16</td><td>8</td><td><span class="tag fixed">固定</span></td></tr>
+                    <tr><td>4</td><td>imgsz</td><td>640</td><td>1280</td><td><span class="tag fixed">固定</span></td></tr>
+                    <tr><td>5</td><td>box</td><td>7.5</td><td>7.5 / 10.0</td><td><span class="tag searched">本次搜尋</span></td></tr>
+                    <tr><td>6</td><td>cls</td><td>0.5</td><td>使用預設</td><td><span class="tag defaulted">使用預設</span></td></tr>
+                    <tr><td>7</td><td>dfl</td><td>1.5</td><td>使用預設</td><td><span class="tag defaulted">使用預設</span></td></tr>
+                    <tr><td>8</td><td>warmup_epochs</td><td>3.0</td><td>使用預設</td><td><span class="tag defaulted">使用預設</span></td></tr>
+                    <tr><td>9</td><td>warmup_momentum</td><td>0.8</td><td>使用預設</td><td><span class="tag defaulted">使用預設</span></td></tr>
+                    <tr><td>10</td><td>warmup_bias_lr</td><td>0.1</td><td>使用預設</td><td><span class="tag defaulted">使用預設</span></td></tr>
+                    <tr><td>11</td><td>val / plots / save</td><td>True / True / True</td><td>保留驗證與圖表</td><td><span class="tag fixed">固定</span></td></tr>
+                    <tr><td>12</td><td>seed / deterministic / amp</td><td>0 / True / True</td><td>使用預設</td><td><span class="tag defaulted">使用預設</span></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </details>
+            <details class="param-group">
+              <summary><span>資料超參數</span><small>dataset, image transform, augmentation</small></summary>
+              <div class="catalog-table-wrap">
+                <table class="catalog-table">
+                  <thead><tr><th>項次</th><th>超參數</th><th>官方預設/常見值</th><th>本專案設定</th><th>狀態</th></tr></thead>
+                  <tbody>
+                    <tr><td>1</td><td>data</td><td>dataset yaml</td><td>dental_data.yaml / DENTEX</td><td><span class="tag fixed">固定</span></td></tr>
+                    <tr><td>2</td><td>classes</td><td>依資料集</td><td>cavity / wisdom_tooth</td><td><span class="tag fixed">固定</span></td></tr>
+                    <tr><td>3</td><td>workers</td><td>8</td><td>使用預設</td><td><span class="tag defaulted">使用預設</span></td></tr>
+                    <tr><td>4</td><td>hsv_h / hsv_s / hsv_v</td><td>0.015 / 0.7 / 0.4</td><td>使用預設</td><td><span class="tag defaulted">使用預設</span></td></tr>
+                    <tr><td>5</td><td>degrees / translate / scale</td><td>0 / 0.1 / 0.5</td><td>使用預設</td><td><span class="tag defaulted">使用預設</span></td></tr>
+                    <tr><td>6</td><td>shear / perspective</td><td>0 / 0</td><td>使用預設</td><td><span class="tag defaulted">使用預設</span></td></tr>
+                    <tr><td>7</td><td>flipud / fliplr</td><td>0 / 0.5</td><td>使用預設</td><td><span class="tag defaulted">使用預設</span></td></tr>
+                    <tr><td>8</td><td>mosaic / mixup / cutmix</td><td>1.0 / 0 / 0</td><td>使用預設</td><td><span class="tag defaulted">使用預設</span></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </details>
+            <details class="param-group">
+              <summary><span>優化器超參數</span><small>YOLO optimizer + PyTorch AdamW</small></summary>
+              <div class="catalog-table-wrap">
+                <table class="catalog-table">
+                  <thead><tr><th>項次</th><th>超參數</th><th>官方預設/常見值</th><th>本專案設定</th><th>狀態</th></tr></thead>
+                  <tbody>
+                    <tr><td>1</td><td>optimizer</td><td>auto / SGD / Adam / AdamW</td><td>AdamW</td><td><span class="tag fixed">固定</span></td></tr>
+                    <tr><td>2</td><td>lr0 / AdamW lr</td><td>YOLO 0.01；AdamW 0.001</td><td>0.0001 / 0.001 / 0.01</td><td><span class="tag searched">本次搜尋</span></td></tr>
+                    <tr><td>3</td><td>lrf</td><td>0.01</td><td>使用預設</td><td><span class="tag defaulted">使用預設</span></td></tr>
+                    <tr><td>4</td><td>momentum / AdamW beta1</td><td>0.937 / betas=(0.9, 0.999)</td><td>0.900 / 0.937</td><td><span class="tag searched">本次搜尋</span></td></tr>
+                    <tr><td>5</td><td>weight_decay</td><td>YOLO 0.0005；AdamW 0.01</td><td>0.001 / 0.010 / 0.100</td><td><span class="tag searched">本次搜尋</span></td></tr>
+                    <tr><td>6</td><td>cos_lr / scheduler</td><td>False</td><td>linear / cosine</td><td><span class="tag searched">本次搜尋</span></td></tr>
+                    <tr><td>7</td><td>AdamW eps</td><td>1e-8</td><td>使用預設</td><td><span class="tag defaulted">使用預設</span></td></tr>
+                    <tr><td>8</td><td>AdamW amsgrad / maximize</td><td>False / False</td><td>使用預設</td><td><span class="tag defaulted">使用預設</span></td></tr>
+                    <tr><td>9</td><td>AdamW foreach / fused</td><td>None / None</td><td>由 PyTorch 環境決定</td><td><span class="tag defaulted">使用預設</span></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </details>
+            <details class="param-group">
+              <summary><span>模型超參數</span><small>model scale, weights, head</small></summary>
+              <div class="catalog-table-wrap">
+                <table class="catalog-table">
+                  <thead><tr><th>項次</th><th>超參數</th><th>官方預設/常見值</th><th>本專案設定</th><th>狀態</th></tr></thead>
+                  <tbody>
+                    <tr><td>1</td><td>model</td><td>.pt / .yaml</td><td>YOLOv8m / current_model.pt</td><td><span class="tag fixed">固定</span></td></tr>
+                    <tr><td>2</td><td>pretrained</td><td>True</td><td>YOLOv8m pretrained / current weights</td><td><span class="tag fixed">固定</span></td></tr>
+                    <tr><td>3</td><td>nc</td><td>依資料集類別數</td><td>2</td><td><span class="tag fixed">固定</span></td></tr>
+                    <tr><td>4</td><td>depth_multiple / width_multiple</td><td>依 YOLOv8m yaml</td><td>medium scale</td><td><span class="tag fixed">固定</span></td></tr>
+                    <tr><td>5</td><td>freeze</td><td>None</td><td>使用預設</td><td><span class="tag defaulted">使用預設</span></td></tr>
+                    <tr><td>6</td><td>dropout</td><td>0.0</td><td>使用預設</td><td><span class="tag defaulted">使用預設</span></td></tr>
+                    <tr><td>7</td><td>官方參數量</td><td>YOLOv8m 25.9M</td><td>25.9M</td><td><span class="tag fixed">來源數據</span></td></tr>
+                    <tr><td>8</td><td>官方 FLOPs</td><td>YOLOv8m 78.9B</td><td>78.9B</td><td><span class="tag fixed">來源數據</span></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </details>
           </div>
           <div class="source-list">
             <a href="https://docs.ultralytics.com/models/yolov8/" target="_blank" rel="noopener noreferrer">Ultralytics YOLOv8 官方模型文件</a>

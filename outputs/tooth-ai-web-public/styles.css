@@ -711,6 +711,127 @@ h3 {
   font-weight: 800;
 }
 
+.simple-architecture {
+  display: block;
+}
+
+.arch-flow {
+  display: grid;
+  grid-template-columns: minmax(130px, 1fr) 42px minmax(180px, 1.25fr) 42px minmax(180px, 1.2fr) 42px minmax(170px, 1.15fr);
+  align-items: center;
+  gap: 0;
+  padding: 14px;
+  background: #f8fafc;
+  border: 1px solid #e8eef6;
+  border-radius: 8px;
+}
+
+.arch-node {
+  min-height: 132px;
+  display: grid;
+  align-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.arch-node::after {
+  content: "";
+  position: absolute;
+  right: -28px;
+  bottom: -28px;
+  width: 76px;
+  height: 76px;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.1);
+}
+
+.input-node { border-top: 4px solid #0f766e; }
+.backbone-node { border-top: 4px solid #2563eb; }
+.neck-node { border-top: 4px solid #9333ea; }
+.detect-node { border-top: 4px solid #dc2626; }
+
+.arch-connector {
+  height: 3px;
+  background: linear-gradient(90deg, #94a3b8, #2563eb);
+  position: relative;
+}
+
+.arch-connector::after {
+  content: "";
+  position: absolute;
+  right: -1px;
+  top: 50%;
+  width: 0;
+  height: 0;
+  border-top: 8px solid transparent;
+  border-bottom: 8px solid transparent;
+  border-left: 12px solid #2563eb;
+  transform: translateY(-50%);
+}
+
+.full-architecture {
+  grid-template-columns: 1.05fr 1.2fr 1.05fr;
+}
+
+.arch-column {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 14px;
+  background: #f8fafc;
+  border: 1px solid #dbe7f4;
+  border-radius: 8px;
+}
+
+.arch-column h4 {
+  margin: 0 0 2px;
+}
+
+.arch-step,
+.scale-branch,
+.arch-output-grid div,
+.detect-scales div {
+  padding: 10px 11px;
+  background: #ffffff;
+  border: 1px solid #d8e2ef;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.arch-column-middle {
+  background: #f0f9ff;
+}
+
+.scale-branch {
+  display: grid;
+  grid-template-columns: 1fr 72px;
+  align-items: center;
+  gap: 10px;
+}
+
+.scale-branch b {
+  height: 3px;
+  background: linear-gradient(90deg, #0f766e, #2563eb);
+  border-radius: 999px;
+}
+
+.detect-scales,
+.arch-output-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.detect-scales span,
+.detect-scales strong {
+  display: block;
+}
+
+.arch-output-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .source-list {
   display: flex;
   flex-wrap: wrap;
@@ -736,9 +857,47 @@ h3 {
   border-radius: 8px;
 }
 
+.param-group {
+  margin-top: 10px;
+  border: 1px solid #dbe7f4;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.param-group summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 14px;
+  background: #f8fafc;
+  cursor: pointer;
+  font-weight: 950;
+}
+
+.param-group[open] summary {
+  color: #0f766e;
+  background: #ecfdf5;
+}
+
+.param-group summary::marker {
+  color: var(--accent-2);
+}
+
+.param-group summary small {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.param-group .catalog-table-wrap {
+  padding: 10px;
+}
+
 .catalog-head {
-  display: grid;
-  gap: 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 12px;
   margin-bottom: 12px;
 }
 
@@ -750,6 +909,24 @@ h3 {
 .catalog-head p {
   color: #475467;
   line-height: 1.6;
+}
+
+.catalog-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.catalog-actions button {
+  min-height: 36px;
+  padding: 0 12px;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  font-weight: 900;
+  cursor: pointer;
 }
 
 .catalog-table-wrap {
@@ -787,7 +964,8 @@ h3 {
   background: #dbeafe;
 }
 
-.tag.unused {
+.tag.unused,
+.tag.defaulted {
   color: #475569;
   background: #e2e8f0;
 }
@@ -2064,6 +2242,28 @@ input:disabled {
     grid-template-columns: 1fr;
   }
 
+  .arch-flow {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .arch-connector {
+    width: 3px;
+    height: 34px;
+    justify-self: center;
+  }
+
+  .arch-connector::after {
+    right: 50%;
+    top: auto;
+    bottom: -2px;
+    border-left: 8px solid transparent;
+    border-right: 8px solid transparent;
+    border-top: 12px solid #2563eb;
+    border-bottom: 0;
+    transform: translateX(50%);
+  }
+
   .arch-arrow {
     transform: rotate(90deg);
   }
@@ -2133,6 +2333,14 @@ input:disabled {
 
   .panel-title-row {
     display: grid;
+  }
+
+  .catalog-head {
+    display: grid;
+  }
+
+  .catalog-actions {
+    justify-content: flex-start;
   }
 
   .header-status {
