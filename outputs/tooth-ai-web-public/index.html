@@ -345,17 +345,83 @@
           <div class="model-detail-grid">
             <article>
               <h4>訓練與優化器</h4>
-              <p>本專案固定使用 AdamW，並搜尋 5 個主要訓練超參數：box、lr0、weight_decay、momentum、scheduler。實驗空間為 2 × 3 × 3 × 2 × 2 = 72 組，每組 10 runs，共 720 次結果彙整。</p>
+              <p>YOLO 訓練可設定的超參數很多；本專案固定使用 AdamW，並將其中 5 個欄位納入 grid search：box、lr0、weight_decay、momentum、scheduler。實驗空間為 2 × 3 × 3 × 2 × 2 = 72 組，每組 10 runs，共 720 次結果彙整。</p>
             </article>
             <article>
               <h4>官方訓練設定依據</h4>
               <p>Ultralytics Train 文件將 batch size、learning rate、momentum、weight decay、optimizer、loss function 與資料組成列為會影響訓練表現的重要設定。本頁只呈現本專案實際使用到的設定。</p>
             </article>
           </div>
+          <div class="hyperparameter-catalog">
+            <div class="catalog-head">
+              <h4>YOLO 訓練可設定超參數</h4>
+              <p>下表依 Ultralytics Train 文件整理，並用「本次搜尋」標記你實驗中實際掃描的欄位；其他欄位是 YOLO 訓練仍可設定，但本次固定或未調整。</p>
+            </div>
+            <div class="catalog-table-wrap">
+              <table class="catalog-table">
+                <thead>
+                  <tr><th>類別</th><th>超參數</th><th>官方預設/常見值</th><th>本專案設定</th><th>狀態</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td>模型/資料</td><td>model</td><td>.pt / .yaml</td><td>YOLOv8m / current_model.pt</td><td><span class="tag fixed">固定</span></td></tr>
+                  <tr><td>模型/資料</td><td>data</td><td>dataset yaml</td><td>dental_data.yaml / DENTEX</td><td><span class="tag fixed">固定</span></td></tr>
+                  <tr><td>訓練長度</td><td>epochs</td><td>100</td><td>100</td><td><span class="tag fixed">固定</span></td></tr>
+                  <tr><td>訓練長度</td><td>patience</td><td>100</td><td>未作為搜尋欄位</td><td><span class="tag unused">未搜尋</span></td></tr>
+                  <tr><td>批次/影像</td><td>batch</td><td>16</td><td>8</td><td><span class="tag fixed">固定</span></td></tr>
+                  <tr><td>批次/影像</td><td>imgsz</td><td>640</td><td>1280</td><td><span class="tag fixed">固定</span></td></tr>
+                  <tr><td>訓練環境</td><td>device</td><td>auto / GPU / CPU</td><td>本機訓練環境</td><td><span class="tag fixed">固定</span></td></tr>
+                  <tr><td>訓練環境</td><td>workers</td><td>8</td><td>未作為搜尋欄位</td><td><span class="tag unused">未搜尋</span></td></tr>
+                  <tr><td>初始化</td><td>pretrained</td><td>True</td><td>YOLOv8m pretrained / current weights</td><td><span class="tag fixed">固定</span></td></tr>
+                  <tr><td>優化器</td><td>optimizer</td><td>auto / SGD / Adam / AdamW...</td><td>AdamW</td><td><span class="tag fixed">固定</span></td></tr>
+                  <tr><td>優化器</td><td>lr0</td><td>0.01；Adam 類常用 0.001</td><td>0.0001 / 0.001 / 0.01</td><td><span class="tag searched">本次搜尋</span></td></tr>
+                  <tr><td>優化器</td><td>lrf</td><td>0.01</td><td>未作為搜尋欄位</td><td><span class="tag unused">未搜尋</span></td></tr>
+                  <tr><td>優化器</td><td>momentum</td><td>0.937</td><td>0.900 / 0.937</td><td><span class="tag searched">本次搜尋</span></td></tr>
+                  <tr><td>優化器</td><td>weight_decay</td><td>0.0005</td><td>0.001 / 0.010 / 0.100</td><td><span class="tag searched">本次搜尋</span></td></tr>
+                  <tr><td>學習率排程</td><td>cos_lr / scheduler</td><td>False</td><td>linear / cosine</td><td><span class="tag searched">本次搜尋</span></td></tr>
+                  <tr><td>Warmup</td><td>warmup_epochs</td><td>3.0</td><td>未作為搜尋欄位</td><td><span class="tag unused">未搜尋</span></td></tr>
+                  <tr><td>Warmup</td><td>warmup_momentum</td><td>0.8</td><td>未作為搜尋欄位</td><td><span class="tag unused">未搜尋</span></td></tr>
+                  <tr><td>Warmup</td><td>warmup_bias_lr</td><td>0.1</td><td>未作為搜尋欄位</td><td><span class="tag unused">未搜尋</span></td></tr>
+                  <tr><td>Loss</td><td>box</td><td>7.5</td><td>7.5 / 10.0</td><td><span class="tag searched">本次搜尋</span></td></tr>
+                  <tr><td>Loss</td><td>cls</td><td>0.5</td><td>未作為搜尋欄位</td><td><span class="tag unused">未搜尋</span></td></tr>
+                  <tr><td>Loss</td><td>dfl</td><td>1.5</td><td>未作為搜尋欄位</td><td><span class="tag unused">未搜尋</span></td></tr>
+                  <tr><td>Augmentation</td><td>hsv_h / hsv_s / hsv_v</td><td>0.015 / 0.7 / 0.4</td><td>未作為搜尋欄位</td><td><span class="tag unused">未搜尋</span></td></tr>
+                  <tr><td>Augmentation</td><td>degrees / translate / scale / shear / perspective</td><td>0 / 0.1 / 0.5 / 0 / 0</td><td>未作為搜尋欄位</td><td><span class="tag unused">未搜尋</span></td></tr>
+                  <tr><td>Augmentation</td><td>flipud / fliplr / mosaic / mixup / cutmix</td><td>0 / 0.5 / 1.0 / 0 / 0</td><td>未作為搜尋欄位</td><td><span class="tag unused">未搜尋</span></td></tr>
+                  <tr><td>驗證/輸出</td><td>val / plots / save / save_period</td><td>True / True / True / -1</td><td>保留訓練結果與圖表</td><td><span class="tag fixed">固定</span></td></tr>
+                  <tr><td>其他</td><td>seed / deterministic / amp / freeze</td><td>0 / True / True / None</td><td>未作為搜尋欄位</td><td><span class="tag unused">未搜尋</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="hyperparameter-catalog">
+            <div class="catalog-head">
+              <h4>AdamW optimizer 參數</h4>
+              <p>AdamW 是 PyTorch optimizer；Ultralytics 會把 YOLO 訓練參數映射到 optimizer。此處分成 PyTorch AdamW 原生參數，以及本專案實際在 YOLO 設定中可見/有調整的欄位。</p>
+            </div>
+            <div class="catalog-table-wrap">
+              <table class="catalog-table">
+                <thead>
+                  <tr><th>AdamW 參數</th><th>PyTorch 預設</th><th>YOLO 對應/本專案</th><th>說明</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td>params</td><td>模型參數</td><td>YOLOv8m trainable weights</td><td>要被最佳化的模型權重。</td></tr>
+                  <tr><td>lr</td><td>0.001</td><td>lr0：0.0001 / 0.001 / 0.01</td><td>學習率，本次有搜尋。</td></tr>
+                  <tr><td>betas</td><td>(0.9, 0.999)</td><td>momentum 對應 beta1：0.900 / 0.937</td><td>一階/二階動量係數；YOLO 文件說 momentum 對 Adam 類為 beta1。</td></tr>
+                  <tr><td>eps</td><td>1e-8</td><td>未另外設定</td><td>數值穩定項。</td></tr>
+                  <tr><td>weight_decay</td><td>0.01</td><td>0.001 / 0.010 / 0.100</td><td>AdamW 的 decoupled weight decay，本次有搜尋。</td></tr>
+                  <tr><td>amsgrad</td><td>False</td><td>未另外設定</td><td>是否使用 AMSGrad 變體。</td></tr>
+                  <tr><td>maximize</td><td>False</td><td>未另外設定</td><td>一般訓練是最小化 loss。</td></tr>
+                  <tr><td>foreach / fused</td><td>None</td><td>由 PyTorch/環境決定</td><td>影響 optimizer 實作效能，不是本次搜尋欄位。</td></tr>
+                  <tr><td>capturable / differentiable</td><td>False / False</td><td>未另外設定</td><td>圖捕捉或可微分 optimizer 設定。</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
           <div class="source-list">
             <a href="https://docs.ultralytics.com/models/yolov8/" target="_blank" rel="noopener noreferrer">Ultralytics YOLOv8 官方模型文件</a>
             <a href="https://github.com/ultralytics/ultralytics/blob/main/ultralytics/cfg/models/v8/yolov8.yaml" target="_blank" rel="noopener noreferrer">YOLOv8 官方 YAML 架構</a>
             <a href="https://docs.ultralytics.com/modes/train/" target="_blank" rel="noopener noreferrer">Ultralytics Train 超參數文件</a>
+            <a href="https://docs.pytorch.org/docs/2.13/generated/torch.optim.AdamW.html" target="_blank" rel="noopener noreferrer">PyTorch AdamW 官方文件</a>
           </div>
         </div>
         <div class="panel compare-panel">

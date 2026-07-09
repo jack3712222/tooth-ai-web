@@ -728,6 +728,70 @@ h3 {
   text-decoration: none;
 }
 
+.hyperparameter-catalog {
+  margin-top: 16px;
+  padding: 14px;
+  background: #ffffff;
+  border: 1px solid #e8eef6;
+  border-radius: 8px;
+}
+
+.catalog-head {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.catalog-head h4,
+.catalog-head p {
+  margin: 0;
+}
+
+.catalog-head p {
+  color: #475467;
+  line-height: 1.6;
+}
+
+.catalog-table-wrap {
+  overflow-x: auto;
+}
+
+.catalog-table {
+  min-width: 880px;
+}
+
+.catalog-table th,
+.catalog-table td {
+  vertical-align: top;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 26px;
+  padding: 0 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.tag.searched {
+  color: #065f46;
+  background: #d1fae5;
+}
+
+.tag.fixed {
+  color: #1e3a8a;
+  background: #dbeafe;
+}
+
+.tag.unused {
+  color: #475569;
+  background: #e2e8f0;
+}
+
 .source-overview,
 .analysis-summary-row {
   display: grid;
