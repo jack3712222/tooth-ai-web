@@ -95,6 +95,11 @@
           <strong id="trainingState">Ready</strong>
           <small id="epochState">epoch 0 / 100</small>
         </article>
+        <article>
+          <span>最後更新</span>
+          <strong id="lastUpdatedValue">2026-07-09 00:00</strong>
+          <small>GitHub + Netlify 自動部署</small>
+        </article>
       </section>
 
       <section class="command-strip tab-page active" data-tab-page="overview" aria-label="快速操作">
@@ -114,7 +119,32 @@
           <button id="checkSystemBtn">檢查 API</button>
           <button id="jumpDemoBtn">快速 Demo</button>
           <button id="exportReportBtn">匯出結果 JSON</button>
+          <button id="visitorModeBtn" type="button">訪客模式</button>
+          <button id="editorModeBtn" type="button">編輯模式</button>
         </div>
+      </section>
+
+      <section class="dashboard-band tab-page active" data-tab-page="overview" aria-label="最佳模型儀表板">
+        <article>
+          <span>最佳組合</span>
+          <strong>Combo 60</strong>
+          <small>mAP@50 0.7493，F1 0.7138。</small>
+        </article>
+        <article>
+          <span>模型強項</span>
+          <strong>阻生智齒 AP@50 0.9029</strong>
+          <small>後牙區域偵測表現最好。</small>
+        </article>
+        <article>
+          <span>實驗完整度</span>
+          <strong>72 組 / 720 runs</strong>
+          <small>每組補滿 10 runs。</small>
+        </article>
+        <article>
+          <span>資料覆蓋</span>
+          <strong>668 張 / 3,371 標註</strong>
+          <small>cavity 與 wisdom_tooth。</small>
+        </article>
       </section>
 
       <section id="application" class="section tab-page" data-tab-page="application">
@@ -226,6 +256,12 @@
                 <option value="wisdom_tooth">含阻生智齒</option>
                 <option value="both">兩類都有</option>
               </select>
+              <select id="dataPageSizeSelect" aria-label="每頁顯示資料筆數">
+                <option value="10">每頁 10 張</option>
+                <option value="25" selected>每頁 25 張</option>
+                <option value="50">每頁 50 張</option>
+                <option value="100">每頁 100 張</option>
+              </select>
             </div>
           </div>
           <div class="local-image-loader">
@@ -240,13 +276,13 @@
             <table class="data-record-table">
               <thead>
                 <tr>
-                  <th>#</th>
+                  <th><button class="sort-th" type="button" data-data-sort="index">#</button></th>
                   <th>影像</th>
-                  <th>Split</th>
-                  <th>影像檔名</th>
-                  <th>蛀牙標註</th>
-                  <th>阻生智齒標註</th>
-                  <th>總標註</th>
+                  <th><button class="sort-th" type="button" data-data-sort="split">Split</button></th>
+                  <th><button class="sort-th" type="button" data-data-sort="image">影像檔名</button></th>
+                  <th><button class="sort-th" type="button" data-data-sort="cavity">蛀牙標註</button></th>
+                  <th><button class="sort-th" type="button" data-data-sort="wisdom_tooth">阻生智齒標註</button></th>
+                  <th><button class="sort-th" type="button" data-data-sort="total">總標註</button></th>
                 </tr>
               </thead>
               <tbody id="dataRecordTableBody">
@@ -471,6 +507,7 @@
                   <option value="cavityAp50">Cavity AP@50 高到低</option>
                   <option value="wisdomAp50">Wisdom Tooth AP@50 高到低</option>
                   <option value="time">Avg Time 低到高</option>
+                  <option value="composite">綜合排名</option>
                   <option value="id">Combo ID 小到大</option>
                 </select>
               </label>
@@ -493,6 +530,7 @@
                   <option value="distribution">分布圖</option>
                 </select>
               </label>
+              <button id="applySimulationControlsBtn" class="apply-controls-btn" type="button">套用排序 / 圖表</button>
             </div>
             <div class="train-actions">
               <button id="pauseTrainingBtn">依 Combo 編號</button>
@@ -512,6 +550,15 @@
           </div>
         </div>
         <div class="result-summary-grid">
+          <article class="panel result-card">
+            <span>綜合排名最佳</span>
+            <strong id="compositeBestTitle">Combo 60</strong>
+            <p id="compositeBestText">綜合 mAP@50、mAP@50-95、Precision、Recall、F1、Accuracy、各類 AP，並反向計入平均時間。</p>
+            <dl class="combo-score-grid">
+              <div><dt>Composite</dt><dd id="selectedCompositeScore">--</dd></div>
+              <div><dt>Rank</dt><dd id="selectedCompositeRank">--</dd></div>
+            </dl>
+          </article>
           <article class="panel result-card">
             <span>目前查詢組合</span>
             <strong id="selectedComboTitle">Combo 60</strong>

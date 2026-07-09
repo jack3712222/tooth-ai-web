@@ -13,6 +13,8 @@ let currentImageInfo = {
 let lastInferenceMs = "--";
 let currentConfidence = 0;
 const demoRecordKey = "toothAiDemoRecords";
+const accessModeKey = "toothAiAccessMode";
+const editorPassword = "dentex2026";
 const labels = ["蛀牙", "阻生智齒"];
 const demoLabels = new Set(["蛀牙", "阻生智齒", "未偵測到目標"]);
 const allowedOptimizers = new Set(["AdamW"]);
@@ -140,6 +142,8 @@ const els = {
   modelStatus: document.querySelector("#modelStatus"),
   slicerBridgeStatus: document.querySelector("#slicerBridgeStatus"),
   checkSystemBtn: document.querySelector("#checkSystemBtn"),
+  visitorModeBtn: document.querySelector("#visitorModeBtn"),
+  editorModeBtn: document.querySelector("#editorModeBtn"),
   modelModal: document.querySelector("#modelModal"),
   openModelModalBtn: document.querySelector("#openModelModalBtn"),
   closeModelModalBtn: document.querySelector("#closeModelModalBtn"),
@@ -157,11 +161,13 @@ const els = {
   dataSearchInput: document.querySelector("#dataSearchInput"),
   dataSplitFilter: document.querySelector("#dataSplitFilter"),
   dataClassFilter: document.querySelector("#dataClassFilter"),
+  dataPageSizeSelect: document.querySelector("#dataPageSizeSelect"),
   dataRecordTableBody: document.querySelector("#dataRecordTableBody"),
   dataBrowserSummary: document.querySelector("#dataBrowserSummary"),
   dataPrevBtn: document.querySelector("#dataPrevBtn"),
   dataNextBtn: document.querySelector("#dataNextBtn"),
   dataPageInfo: document.querySelector("#dataPageInfo"),
+  lastUpdatedValue: document.querySelector("#lastUpdatedValue"),
   predictionValue: document.querySelector("#predictionValue"),
   confidenceValue: document.querySelector("#confidenceValue"),
   heroPrediction: document.querySelector("#heroPrediction"),
@@ -185,6 +191,7 @@ const els = {
   comboSort: document.querySelector("#comboSort"),
   metricSelect: document.querySelector("#metricSelect"),
   chartMode: document.querySelector("#chartMode"),
+  applySimulationControlsBtn: document.querySelector("#applySimulationControlsBtn"),
   chartTitle: document.querySelector("#chartTitle"),
   selectedMetricLabel: document.querySelector("#selectedMetricLabel"),
   selectedComboTitle: document.querySelector("#selectedComboTitle"),
@@ -197,6 +204,10 @@ const els = {
   selectedTime: document.querySelector("#selectedTime"),
   selectedCavityAp: document.querySelector("#selectedCavityAp"),
   selectedWisdomAp: document.querySelector("#selectedWisdomAp"),
+  compositeBestTitle: document.querySelector("#compositeBestTitle"),
+  compositeBestText: document.querySelector("#compositeBestText"),
+  selectedCompositeScore: document.querySelector("#selectedCompositeScore"),
+  selectedCompositeRank: document.querySelector("#selectedCompositeRank"),
   cavityBar: document.querySelector("#cavityBar"),
   wisdomBar: document.querySelector("#wisdomBar"),
   goodComboList: document.querySelector("#goodComboList"),
@@ -231,7 +242,12 @@ const trainingHistory = {
 
 let chartHitRegions = [];
 let dataPage = 1;
-const dataPageSize = 25;
+let dataPageSize = 25;
+let dataSortKey = "index";
+let dataSortDirection = "asc";
+let appliedComboSort = "map50";
+let appliedMetricKey = "map50";
+let appliedChartMode = "ranking";
 const dentexRecords = Array.isArray(window.dentexRecords) ? window.dentexRecords : [];
 const localImageUrls = new Map();
 
@@ -245,6 +261,7 @@ const metricConfigs = {
   cavityAp50: { label: "Cavity AP@50", better: "higher", digits: 4 },
   wisdomAp50: { label: "Wisdom Tooth AP@50", better: "higher", digits: 4 },
   time: { label: "Avg Time", better: "lower", digits: 2, suffix: " min" },
+  composite: { label: "Composite", better: "higher", digits: 4 },
 };
 
 function appendLog(line) {
@@ -410,9 +427,37 @@ function filteredDentexRecords() {
   });
 }
 
+function sortedDentexRecords(rows) {
+  const direction = dataSortDirection === "asc" ? 1 : -1;
+  const valueFor = (record, index) => {
+    if (dataSortKey === "index") return index;
+    if (["cavity", "wisdom_tooth", "total"].includes(dataSortKey)) return Number(record[dataSortKey] || 0);
+    return String(record[dataSortKey] || "").toLowerCase();
+  };
+  return rows
+    .map((record, index) => ({ record, index }))
+    .sort((a, b) => {
+      const av = valueFor(a.record, a.index);
+      const bv = valueFor(b.record, b.index);
+      if (typeof av === "number" && typeof bv === "number") return (av - bv) * direction;
+      return String(av).localeCompare(String(bv), "zh-Hant", { numeric: true }) * direction;
+    })
+    .map((item) => item.record);
+}
+
+function updateDataSortHeaders() {
+  document.querySelectorAll("[data-data-sort]").forEach((button) => {
+    const key = button.dataset.dataSort;
+    const base = button.textContent.replace(/[▲▼]\s*$/, "").trim();
+    button.textContent = key === dataSortKey
+      ? `${base} ${dataSortDirection === "asc" ? "▲" : "▼"}`
+      : base;
+  });
+}
+
 function renderDataBrowser() {
   if (!els.dataRecordTableBody) return;
-  const rows = filteredDentexRecords();
+  const rows = sortedDentexRecords(filteredDentexRecords());
   const totalPages = Math.max(1, Math.ceil(rows.length / dataPageSize));
   dataPage = Math.min(Math.max(1, dataPage), totalPages);
   const start = (dataPage - 1) * dataPageSize;
@@ -471,11 +516,55 @@ function renderDataBrowser() {
   if (els.dataPageInfo) els.dataPageInfo.textContent = `Page ${dataPage} / ${totalPages}`;
   if (els.dataPrevBtn) els.dataPrevBtn.disabled = dataPage <= 1;
   if (els.dataNextBtn) els.dataNextBtn.disabled = dataPage >= totalPages;
+  updateDataSortHeaders();
 }
 
 function resetDataBrowserPage() {
   dataPage = 1;
   renderDataBrowser();
+}
+
+function setLastUpdatedTime() {
+  if (!els.lastUpdatedValue) return;
+  const formatter = new Intl.DateTimeFormat("zh-TW", {
+    timeZone: "Asia/Taipei",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  els.lastUpdatedValue.textContent = formatter.format(new Date()).replace(/\//g, "-");
+}
+
+function setAccessMode(mode) {
+  const safeMode = mode === "editor" ? "editor" : "visitor";
+  localStorage.setItem(accessModeKey, safeMode);
+  document.body.dataset.accessMode = safeMode;
+  const editorEnabled = safeMode === "editor";
+  [
+    els.applyEditBtn,
+    els.saveDemoBtn,
+    els.clearRecordsBtn,
+    els.manualPredictionInput,
+    els.manualConfidenceInput,
+  ].forEach((control) => {
+    if (control) control.disabled = !editorEnabled;
+  });
+  els.visitorModeBtn?.classList.toggle("active", !editorEnabled);
+  els.editorModeBtn?.classList.toggle("active", editorEnabled);
+  appendLog(`[access] mode=${safeMode}`);
+}
+
+function requestEditorMode() {
+  const password = window.prompt("請輸入編輯模式密碼");
+  if (password === editorPassword) {
+    setAccessMode("editor");
+  } else if (password !== null) {
+    window.alert("密碼錯誤，維持訪客模式。");
+    setAccessMode("visitor");
+  }
 }
 
 function trainingConfig() {
@@ -507,13 +596,13 @@ function updateTrainingUi() {
   els.epochState.textContent = "72 combos / 720 runs";
   els.lossValue.textContent = `${selected.runs} / 10`;
   if (els.selectedMetricLabel) els.selectedMetricLabel.textContent = metricConfigs[metricKey].label;
-  els.accValue.textContent = formatMetricValue(selected[metricKey], metricKey);
+  els.accValue.textContent = formatMetricValue(metricValue(selected, metricKey), metricKey);
   els.trainingState.textContent = "Loaded";
   drawChart();
 }
 
 function currentMetricKey() {
-  const key = els.metricSelect?.value || els.comboSort?.value || "map50";
+  const key = appliedMetricKey || "map50";
   return metricConfigs[key] ? key : "map50";
 }
 
@@ -538,12 +627,31 @@ function formatTooltipValue(value, key = currentMetricKey()) {
   return `${(Number(value) * 100).toFixed(2)}% (${Number(value).toFixed(4)})`;
 }
 
+function metricValue(combo, metricKey = currentMetricKey()) {
+  return metricKey === "composite" ? compositeScore(combo) : combo[metricKey];
+}
+
 function rankedCombosByMetric(metricKey = currentMetricKey()) {
+  if (metricKey === "composite") return rankedCombosByComposite();
   const config = metricConfigs[metricKey] || metricConfigs.map50;
   return [...comboResults].sort((a, b) => {
     if (config.better === "lower") return a[metricKey] - b[metricKey];
     return b[metricKey] - a[metricKey];
   });
+}
+
+function compositeScore(combo) {
+  const qualityKeys = ["map50", "map5095", "precision", "recall", "f1", "accuracy", "cavityAp50", "wisdomAp50"];
+  const quality = qualityKeys.reduce((sum, key) => sum + Number(combo[key] || 0), 0) / qualityKeys.length;
+  const times = comboResults.map((item) => item.time);
+  const minTime = Math.min(...times);
+  const maxTime = Math.max(...times);
+  const timeScore = 1 - ((combo.time - minTime) / (maxTime - minTime || 1));
+  return (quality * 0.85) + (timeScore * 0.15);
+}
+
+function rankedCombosByComposite() {
+  return [...comboResults].sort((a, b) => compositeScore(b) - compositeScore(a));
 }
 
 function drawChart() {
@@ -556,7 +664,7 @@ function drawChart() {
   const height = canvas.height;
   const metricKey = currentMetricKey();
   const metricConfig = currentMetricConfig();
-  const mode = els.chartMode?.value || "ranking";
+  const mode = appliedChartMode || "ranking";
   if (els.chartTitle) {
     els.chartTitle.textContent = `72 組 ${metricConfig.label} ${mode === "distribution" ? "分布圖" : "排名圖"}`;
   }
@@ -607,7 +715,7 @@ function drawYAxis(ctx, { left, right, top, bottom, min, max, metricKey, label =
 function drawComboBars(ctx, metricKey = currentMetricKey()) {
   const selected = selectedComboResult();
   const rows = rankedCombosByMetric(metricKey);
-  const values = rows.map((combo) => combo[metricKey]);
+  const values = rows.map((combo) => metricValue(combo, metricKey));
   const rangePadding = metricKey === "time" ? 2 : 0.005;
   const min = Math.min(...values) - rangePadding;
   const max = Math.max(...values) + rangePadding;
@@ -619,7 +727,7 @@ function drawComboBars(ctx, metricKey = currentMetricKey()) {
   const barWidth = Math.max(2, (right - left) / rows.length - 2);
   rows.forEach((combo, index) => {
     const x = left + (index / rows.length) * (right - left);
-    const normalized = (combo[metricKey] - min) / (max - min || 1);
+    const normalized = (metricValue(combo, metricKey) - min) / (max - min || 1);
     const y = bottom - normalized * (bottom - top);
     ctx.fillStyle = combo.id === selected.id ? "#2563eb" : "#0f766e";
     ctx.fillRect(x, y, barWidth, bottom - y);
@@ -638,7 +746,7 @@ function drawComboBars(ctx, metricKey = currentMetricKey()) {
 
 function drawMetricDistribution(ctx, metricKey = currentMetricKey()) {
   const selected = selectedComboResult();
-  const values = comboResults.map((combo) => combo[metricKey]);
+  const values = comboResults.map((combo) => metricValue(combo, metricKey));
   const bins = 8;
   const min = Math.min(...values);
   const max = Math.max(...values);
@@ -674,7 +782,7 @@ function drawMetricDistribution(ctx, metricKey = currentMetricKey()) {
       height: h,
     });
   });
-  const selectedX = left + ((selected[metricKey] - min) / (max - min || 1)) * (right - left);
+  const selectedX = left + ((metricValue(selected, metricKey) - min) / (max - min || 1)) * (right - left);
   ctx.strokeStyle = "#2563eb";
   ctx.lineWidth = 3;
   ctx.beginPath();
@@ -713,7 +821,7 @@ function showChartTooltip(region, point) {
   if (region.type === "combo") {
     els.chartTooltip.innerHTML = `
       <strong>#${region.rank} Combo ${region.combo.id}</strong>
-      <span>${metricConfig.label}: ${formatTooltipValue(region.combo[metricKey], metricKey)}</span>
+      <span>${metricConfig.label}: ${formatTooltipValue(metricValue(region.combo, metricKey), metricKey)}</span>
       <small>${formatComboParams(region.combo)}</small>
     `;
   } else {
@@ -778,7 +886,8 @@ function populateComboSelect() {
 }
 
 function sortedComboResults() {
-  const sortMode = els.comboSort?.value || "map50";
+  const sortMode = appliedComboSort || "map50";
+  if (sortMode === "composite") return rankedCombosByComposite();
   const rows = [...comboResults];
   const sorters = {
     id: (a, b) => a.id - b.id,
@@ -796,7 +905,7 @@ function sortedComboResults() {
 }
 
 function formatComboParams(combo) {
-  return `box=${combo.box.toFixed(1)}, lr0=${combo.lr0}, weight_decay=${combo.weightDecay.toFixed(3)}, momentum=${combo.momentum.toFixed(3)}, scheduler=${combo.scheduler}`;
+  return `box = ${combo.box.toFixed(1)}；lr0 = ${combo.lr0}；weight_decay = ${combo.weightDecay.toFixed(3)}；momentum = ${combo.momentum.toFixed(3)}；scheduler = ${combo.scheduler}。`;
 }
 
 function renderResultSummary(selected) {
@@ -813,6 +922,15 @@ function renderResultSummary(selected) {
   if (els.selectedWisdomAp) els.selectedWisdomAp.textContent = selected.wisdomAp50.toFixed(4);
   if (els.cavityBar) els.cavityBar.style.width = `${Math.max(0, Math.min(100, selected.cavityAp50 * 100))}%`;
   if (els.wisdomBar) els.wisdomBar.style.width = `${Math.max(0, Math.min(100, selected.wisdomAp50 * 100))}%`;
+  const compositeRows = rankedCombosByComposite();
+  const compositeBest = compositeRows[0];
+  const selectedCompositeRank = compositeRows.findIndex((combo) => combo.id === selected.id) + 1;
+  if (els.compositeBestTitle) els.compositeBestTitle.textContent = `Combo ${compositeBest.id}`;
+  if (els.compositeBestText) {
+    els.compositeBestText.textContent = `綜合分數 ${compositeScore(compositeBest).toFixed(4)}。此排名同時考慮偵測品質與平均時間，適合用來挑整體最均衡的候選組合。`;
+  }
+  if (els.selectedCompositeScore) els.selectedCompositeScore.textContent = compositeScore(selected).toFixed(4);
+  if (els.selectedCompositeRank) els.selectedCompositeRank.textContent = `#${selectedCompositeRank}`;
 
   if (els.goodComboList) {
     const metricKey = currentMetricKey();
@@ -825,7 +943,7 @@ function renderResultSummary(selected) {
         item.type = "button";
         item.className = combo.id === selected.id ? "good-combo selected" : "good-combo";
         item.dataset.combo = String(combo.id);
-        item.textContent = `#${index + 1} Combo ${combo.id}  ${metricConfig.label} ${formatMetricValue(combo[metricKey], metricKey)}  F1 ${combo.f1.toFixed(4)}`;
+        item.textContent = `#${index + 1} Combo ${combo.id}  ${metricConfig.label} ${formatMetricValue(metricValue(combo, metricKey), metricKey)}  F1 ${combo.f1.toFixed(4)}`;
         item.addEventListener("click", () => {
           if (els.comboSelect) els.comboSelect.value = String(combo.id);
           renderComboResults();
@@ -846,7 +964,7 @@ function renderComboResults() {
   els.epochValue.textContent = String(selected.id);
   els.lossValue.textContent = `${selected.runs} / 10`;
   if (els.selectedMetricLabel) els.selectedMetricLabel.textContent = metricConfigs[metricKey].label;
-  els.accValue.textContent = formatMetricValue(selected[metricKey], metricKey);
+  els.accValue.textContent = formatMetricValue(metricValue(selected, metricKey), metricKey);
   els.epochTableBody.replaceChildren();
   sortedComboResults().forEach((combo) => {
     const row = document.createElement("tr");
@@ -878,8 +996,22 @@ function renderComboResults() {
   updateTrainingUi();
 }
 
+function markSimulationControlsPending() {
+  els.applySimulationControlsBtn?.classList.add("pending");
+}
+
+function applySimulationControls() {
+  appliedComboSort = els.comboSort?.value || appliedComboSort;
+  appliedMetricKey = els.metricSelect?.value || appliedMetricKey;
+  appliedChartMode = els.chartMode?.value || appliedChartMode;
+  els.applySimulationControlsBtn?.classList.remove("pending");
+  renderComboResults();
+  appendLog(`[query] applied controls sort=${appliedComboSort}, metric=${appliedMetricKey}, chart=${appliedChartMode}`);
+}
+
 function pauseTraining() {
   if (els.comboSort) els.comboSort.value = "id";
+  appliedComboSort = "id";
   renderComboResults();
   appendLog("[query] showing all 72 combos by Combo ID");
 }
@@ -887,6 +1019,7 @@ function pauseTraining() {
 function fastFinishTraining() {
   const metricKey = currentMetricKey();
   if (els.comboSort) els.comboSort.value = metricKey;
+  appliedComboSort = metricKey;
   renderComboResults();
   updateTrainingUi();
   els.trainingState.textContent = "Ranked";
@@ -1299,21 +1432,24 @@ els.comboSelect?.addEventListener("change", () => {
   appendLog(`[query] selected Combo ${selectedComboResult().id}`);
 });
 els.comboSort?.addEventListener("change", () => {
-  renderComboResults();
-  appendLog(`[query] sorted 72 combos by ${els.comboSort.value}`);
+  markSimulationControlsPending();
+  appendLog(`[query] pending sort=${els.comboSort.value}`);
 });
 els.metricSelect?.addEventListener("change", () => {
-  renderComboResults();
-  appendLog(`[chart] metric changed to ${currentMetricConfig().label}`);
+  markSimulationControlsPending();
+  appendLog(`[chart] pending metric=${els.metricSelect.value}`);
 });
 els.chartMode?.addEventListener("change", () => {
-  drawChart();
-  appendLog(`[chart] mode changed to ${els.chartMode.value}`);
+  markSimulationControlsPending();
+  appendLog(`[chart] pending mode=${els.chartMode.value}`);
 });
+els.applySimulationControlsBtn?.addEventListener("click", applySimulationControls);
 els.chart?.addEventListener("mousemove", handleChartPointerMove);
 els.chart?.addEventListener("mouseleave", hideChartTooltip);
 els.chart?.addEventListener("click", handleChartClick);
 els.checkSystemBtn?.addEventListener("click", checkSystemStatus);
+els.visitorModeBtn?.addEventListener("click", () => setAccessMode("visitor"));
+els.editorModeBtn?.addEventListener("click", requestEditorMode);
 els.openModelModalBtn?.addEventListener("click", openModelModal);
 els.closeModelModalBtn?.addEventListener("click", closeModelModal);
 els.archSimpleBtn?.addEventListener("click", () => setArchitectureMode("simple"));
@@ -1335,6 +1471,22 @@ els.dataImageFolderInput?.addEventListener("change", loadLocalDatasetImages);
 els.dataSearchInput?.addEventListener("input", resetDataBrowserPage);
 els.dataSplitFilter?.addEventListener("change", resetDataBrowserPage);
 els.dataClassFilter?.addEventListener("change", resetDataBrowserPage);
+els.dataPageSizeSelect?.addEventListener("change", () => {
+  dataPageSize = Number(els.dataPageSizeSelect.value || 25);
+  resetDataBrowserPage();
+});
+document.querySelectorAll("[data-data-sort]").forEach((button) => {
+  button.addEventListener("click", () => {
+    const key = button.dataset.dataSort || "index";
+    if (dataSortKey === key) {
+      dataSortDirection = dataSortDirection === "asc" ? "desc" : "asc";
+    } else {
+      dataSortKey = key;
+      dataSortDirection = ["cavity", "wisdom_tooth", "total"].includes(key) ? "desc" : "asc";
+    }
+    resetDataBrowserPage();
+  });
+});
 els.dataPrevBtn?.addEventListener("click", () => {
   dataPage -= 1;
   renderDataBrowser();
@@ -1382,6 +1534,8 @@ document.querySelectorAll('a[href^="#"]').forEach((link) => {
 });
 
 setPendingSelection("蛀牙");
+setLastUpdatedTime();
+setAccessMode(localStorage.getItem(accessModeKey) || "visitor");
 renderDemoRecords();
 updateConfigSummary();
 renderComboResults();
