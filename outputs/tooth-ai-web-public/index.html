@@ -302,6 +302,62 @@
           </div>
           <p id="configSummary">固定訓練設定：YOLOv8m, AdamW, imgsz=1280, batch=8, epochs=100；變動參數為 box、lr0、weight_decay、momentum、scheduler。</p>
         </div>
+        <div class="panel model-evidence-panel">
+          <div class="panel-title-row">
+            <div>
+              <p class="eyebrow">Architecture Evidence</p>
+              <h3>YOLOv8m 模型架構與來源</h3>
+            </div>
+            <div class="segmented-actions" aria-label="模型架構圖切換">
+              <button id="archSimpleBtn" class="active" type="button">簡圖</button>
+              <button id="archFullBtn" type="button">完整圖</button>
+            </div>
+          </div>
+          <div class="model-fact-grid">
+            <article><span>模型版本</span><strong>YOLOv8m Detect</strong><small>Ultralytics YOLOv8 medium detection model</small></article>
+            <article><span>官方參數量</span><strong>25.9M</strong><small>Ultralytics COCO detection table</small></article>
+            <article><span>官方 FLOPs</span><strong>78.9B</strong><small>input size 640 px benchmark</small></article>
+            <article><span>輸出類別</span><strong>2 classes</strong><small>cavity / wisdom_tooth</small></article>
+          </div>
+          <div id="simpleArch" class="architecture-diagram simple-architecture">
+            <div class="arch-node"><span>Input</span><strong>OPG X-ray</strong><small>imgsz 1280</small></div>
+            <div class="arch-arrow">→</div>
+            <div class="arch-node"><span>Backbone</span><strong>Conv + C2f + SPPF</strong><small>feature extraction</small></div>
+            <div class="arch-arrow">→</div>
+            <div class="arch-node"><span>Neck</span><strong>FPN / PAN style fusion</strong><small>P3, P4, P5</small></div>
+            <div class="arch-arrow">→</div>
+            <div class="arch-node"><span>Detect Head</span><strong>Anchor-free split head</strong><small>2 disease classes</small></div>
+          </div>
+          <div id="fullArch" class="architecture-diagram full-architecture" hidden>
+            <div class="arch-lane">
+              <h4>Backbone</h4>
+              <div>Conv P1/2</div><div>Conv P2/4</div><div>C2f blocks</div><div>Conv P3/8</div><div>C2f blocks</div><div>Conv P4/16</div><div>C2f blocks</div><div>Conv P5/32</div><div>C2f + SPPF</div>
+            </div>
+            <div class="arch-lane">
+              <h4>Neck / Feature Fusion</h4>
+              <div>Upsample</div><div>Concat P4</div><div>C2f</div><div>Upsample</div><div>Concat P3</div><div>C2f small</div><div>Downsample</div><div>C2f medium</div><div>Downsample + C2f large</div>
+            </div>
+            <div class="arch-lane">
+              <h4>Detect</h4>
+              <div>P3/8 small targets</div><div>P4/16 medium targets</div><div>P5/32 large targets</div><div>Class logits</div><div>Box regression</div><div>Confidence scores</div><div>cavity</div><div>wisdom_tooth</div>
+            </div>
+          </div>
+          <div class="model-detail-grid">
+            <article>
+              <h4>訓練與優化器</h4>
+              <p>本專案固定使用 AdamW，並搜尋 5 個主要訓練超參數：box、lr0、weight_decay、momentum、scheduler。實驗空間為 2 × 3 × 3 × 2 × 2 = 72 組，每組 10 runs，共 720 次結果彙整。</p>
+            </article>
+            <article>
+              <h4>官方訓練設定依據</h4>
+              <p>Ultralytics Train 文件將 batch size、learning rate、momentum、weight decay、optimizer、loss function 與資料組成列為會影響訓練表現的重要設定。本頁只呈現本專案實際使用到的設定。</p>
+            </article>
+          </div>
+          <div class="source-list">
+            <a href="https://docs.ultralytics.com/models/yolov8/" target="_blank" rel="noopener noreferrer">Ultralytics YOLOv8 官方模型文件</a>
+            <a href="https://github.com/ultralytics/ultralytics/blob/main/ultralytics/cfg/models/v8/yolov8.yaml" target="_blank" rel="noopener noreferrer">YOLOv8 官方 YAML 架構</a>
+            <a href="https://docs.ultralytics.com/modes/train/" target="_blank" rel="noopener noreferrer">Ultralytics Train 超參數文件</a>
+          </div>
+        </div>
         <div class="panel compare-panel">
             <h3>72 組超參數結果 Top 5（依 Test mAP@50）</h3>
             <table>
