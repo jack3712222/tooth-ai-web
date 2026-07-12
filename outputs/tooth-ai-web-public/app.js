@@ -14,15 +14,17 @@ let lastInferenceMs = "--";
 let currentConfidence = 0;
 let localApiOnline = false;
 const localApiBase = "http://127.0.0.1:8000";
+let currentPredictionBoxes = [];
+let lastApiRecordId = null;
 const demoRecordKey = "toothAiDemoRecords";
 const accessModeKey = "toothAiAccessMode";
-const editorPassword = "dentex2026";
+const editorSessionKey = "toothAiEditorSession";
 const labels = ["蛀牙", "阻生智齒"];
 const demoLabels = new Set(["蛀牙", "阻生智齒", "未偵測到目標"]);
 const allowedOptimizers = new Set(["AdamW"]);
 const allowedLearningRates = new Set(["0.001", "0.01", "0.0001"]);
 const allowedBatchSizes = new Set(["8", "4"]);
-const allowedImageTypes = new Set(["image/png", "image/jpeg", "image/webp", "image/bmp", "image/gif", "application/dicom"]);
+const allowedImageTypes = new Set(["image/png", "image/jpeg", "image/webp", "image/bmp"]);
 const maxUploadBytes = 8 * 1024 * 1024;
 const comboResultCsv = `1,7.5,0.001,0.001,0.9,linear,10,0.7171,0.487,0.7327,0.7058,0.7188,0.4508,34.94,0.5486,0.8856
 2,7.5,0.001,0.001,0.9,cosine,10,0.7089,0.4835,0.7417,0.6982,0.7191,0.4501,35.94,0.538,0.8797
@@ -143,6 +145,9 @@ const els = {
   apiStatus: document.querySelector("#apiStatus"),
   modelStatus: document.querySelector("#modelStatus"),
   slicerBridgeStatus: document.querySelector("#slicerBridgeStatus"),
+  medicalViewerImage: document.querySelector("#medicalViewerImage"),
+  medicalViewerPlaceholder: document.querySelector("#medicalViewerPlaceholder"),
+  detectionOverlay: document.querySelector("#detectionOverlay"),
   checkSystemBtn: document.querySelector("#checkSystemBtn"),
   visitorModeBtn: document.querySelector("#visitorModeBtn"),
   editorModeBtn: document.querySelector("#editorModeBtn"),
@@ -290,6 +295,15 @@ function apiBaseUrl() {
   return localApiBase;
 }
 
+function editorToken() {
+  return sessionStorage.getItem(editorSessionKey) || "";
+}
+
+function editorHeaders() {
+  const token = editorToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 async function fetchJsonWithTimeout(url, timeoutMs = 1800) {
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), timeoutMs);
@@ -312,7 +326,7 @@ async function checkSystemStatus() {
     setStatusPill(els.apiStatus, "online", "本機模型：已連線");
     setStatusPill(els.modelStatus, "online", "本機 YOLO：可推論");
     if (els.localInferenceHelp) els.localInferenceHelp.textContent = "本機 API 已連線。上傳 X-ray 後可使用 current_model.pt 推論；影像不會離開這台電腦。";
-    if (els.predictBtn) els.predictBtn.disabled = !currentUploadFile;
+    if (els.predictBtn) els.predictBtn.disabled = !currentUploadFile || !editorToken();
   } catch (error) {
     localApiOnline = false;
     setStatusPill(els.apiStatus, "offline", "本機模型：尚未啟動");
@@ -321,12 +335,7 @@ async function checkSystemStatus() {
     if (els.localInferenceHelp) els.localInferenceHelp.textContent = "尚未偵測到本機 API。請先依本機推論說明啟動 http://127.0.0.1:8000。";
     return;
   }
-  try {
-    const slicer = await fetchJsonWithTimeout(`${localApiBase}/slicer/status`, 1500);
-    setStatusPill(els.slicerBridgeStatus, slicer.connected ? "online" : "offline", slicer.connected ? "3D Slicer：已連接" : "3D Slicer：未連接");
-  } catch {
-    setStatusPill(els.slicerBridgeStatus, "offline", "3D Slicer：未連接");
-  }
+  setStatusPill(els.slicerBridgeStatus, "online", "2D 檢視器：已就緒");
   return;
   setStatusPill(els.apiStatus, "checking", "API 檢查中");
   setStatusPill(els.modelStatus, "checking", "模型：檢查中");
@@ -710,7 +719,7 @@ function setLastUpdatedTime() {
 }
 
 function setAccessMode(mode) {
-  const safeMode = mode === "editor" ? "editor" : "visitor";
+  const safeMode = mode === "editor" && editorToken() ? "editor" : "visitor";
   localStorage.setItem(accessModeKey, safeMode);
   document.body.dataset.accessMode = safeMode;
   const editorEnabled = safeMode === "editor";
@@ -720,6 +729,8 @@ function setAccessMode(mode) {
     els.clearRecordsBtn,
     els.manualPredictionInput,
     els.manualConfidenceInput,
+    els.imageUpload,
+    els.predictBtn,
   ].forEach((control) => {
     if (control) control.disabled = !editorEnabled;
   });
@@ -728,13 +739,30 @@ function setAccessMode(mode) {
   appendLog(`[access] mode=${safeMode}`);
 }
 
-function requestEditorMode() {
-  const password = window.prompt("請輸入編輯模式密碼");
-  if (password === editorPassword) {
+async function requestEditorMode() {
+  if (!localApiOnline) {
+    window.alert("請先啟動本機 API，再登入編輯模式。");
+    return;
+  }
+  const username = window.prompt("編輯者帳號");
+  if (username === null) return;
+  const password = window.prompt("編輯者密碼");
+  if (password === null) return;
+  try {
+    const response = await fetch(`${localApiBase}/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    });
+    if (!response.ok) throw new Error("login failed");
+    const session = await response.json();
+    sessionStorage.setItem(editorSessionKey, session.access_token);
     setAccessMode("editor");
-  } else if (password !== null) {
-    window.alert("密碼錯誤，維持訪客模式。");
+    appendLog(`[auth] editor login=${session.username}`);
+  } catch {
+    sessionStorage.removeItem(editorSessionKey);
     setAccessMode("visitor");
+    window.alert("帳號或密碼錯誤，維持訪客模式。");
   }
 }
 
@@ -1303,6 +1331,28 @@ function updateSlicerViewer(label, confidence, status = "已完成") {
   }
 }
 
+function renderDetectionBoxes() {
+  if (!els.detectionOverlay || !els.medicalViewerImage || els.medicalViewerImage.hidden) return;
+  els.detectionOverlay.replaceChildren();
+  const width = els.medicalViewerImage.naturalWidth || 1;
+  const height = els.medicalViewerImage.naturalHeight || 1;
+  currentPredictionBoxes.forEach((box) => {
+    const [x1, y1, x2, y2] = Array.isArray(box.xyxy) ? box.xyxy.map(Number) : [];
+    if (![x1, y1, x2, y2].every(Number.isFinite) || x2 <= x1 || y2 <= y1) return;
+    const marker = document.createElement("div");
+    marker.className = `detection-box ${box.class === "wisdom_tooth" ? "wisdom" : "cavity"}`;
+    marker.style.left = `${(x1 / width) * 100}%`;
+    marker.style.top = `${(y1 / height) * 100}%`;
+    marker.style.width = `${((x2 - x1) / width) * 100}%`;
+    marker.style.height = `${((y2 - y1) / height) * 100}%`;
+    const label = document.createElement("span");
+    const className = box.class === "wisdom_tooth" ? "wisdom_tooth" : "cavity";
+    label.textContent = `${className} ${(Number(box.confidence) * 100).toFixed(1)}%`;
+    marker.appendChild(label);
+    els.detectionOverlay.appendChild(marker);
+  });
+}
+
 function setPendingSelection(label) {
   selectedDemo = normalizePredictionLabel(label);
   if (!["蛀牙", "阻生智齒"].includes(selectedDemo)) selectedDemo = "蛀牙";
@@ -1383,6 +1433,13 @@ function saveDemoRecord() {
   setDemoRecords([record, ...getDemoRecords()]);
   renderDemoRecords();
   appendLog(`[record] saved image=${record.imageName} prediction=${record.prediction} confidence=${record.confidence}%`);
+  if (lastApiRecordId && editorToken()) {
+    fetch(`${localApiBase}/records/${lastApiRecordId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...editorHeaders() },
+      body: JSON.stringify({ prediction: selectedDemo === "蛀牙" ? "cavity" : "wisdom_tooth", confidence: currentConfidence / 100 }),
+    }).catch(() => appendLog("[record] backend annotation sync failed"));
+  }
 }
 
 function downloadDemoRecords() {
@@ -1437,12 +1494,12 @@ function setPrediction(label, animated = false) {
 function runPrediction() {
   appendLog(`[demo] input image received, preprocessing label_hint=${selectedDemo}`);
   const apiBase = apiBaseUrl();
-  if (localApiOnline && currentUploadFile) {
+  if (localApiOnline && editorToken() && currentUploadFile) {
     setPrediction(selectedDemo, true);
     runApiPrediction(apiBase, currentUploadFile);
     return;
   }
-  els.confidenceValue.textContent = "請先上傳影像並連線本機模型";
+  els.confidenceValue.textContent = "請先登入編輯模式、上傳影像並連線本機模型";
   if (els.slicerStatus) els.slicerStatus.textContent = "等待上傳";
   appendLog("[api] skipped: upload an image and use API Endpoint for real confidence");
 }
@@ -1455,12 +1512,16 @@ async function runApiPrediction(apiBase, file) {
     form.append("confidence", String(currentConfidence / 100));
     const response = await fetch(`${apiBase.replace(/\/$/, "")}/predict`, {
       method: "POST",
+      headers: editorHeaders(),
       body: form,
     });
     if (!response.ok) throw new Error(`API ${response.status}`);
     const result = await response.json();
     selectedDemo = normalizePredictionLabel(result.prediction || selectedDemo);
+    lastApiRecordId = result.id || null;
     currentConfidence = clampConfidence((Number(result.confidence) || 0) * 100);
+    currentPredictionBoxes = Array.isArray(result.boxes) ? result.boxes : [];
+    renderDetectionBoxes();
     lastInferenceMs = `${Number(result.inference_ms || 0).toFixed(0)} ms`;
     if (els.inferenceTime) els.inferenceTime.textContent = lastInferenceMs;
     if (els.manualPredictionInput && ["蛀牙", "阻生智齒"].includes(selectedDemo)) els.manualPredictionInput.value = selectedDemo;
@@ -1571,6 +1632,7 @@ els.imageUpload.addEventListener("change", (event) => {
     return;
   }
   currentUploadFile = file;
+  currentPredictionBoxes = [];
   if (currentPreviewUrl) {
     URL.revokeObjectURL(currentPreviewUrl);
     currentPreviewUrl = null;
@@ -1595,13 +1657,14 @@ els.imageUpload.addEventListener("change", (event) => {
     placeholder.className = "preview-tooth";
     els.previewBox.replaceChildren(placeholder, label);
   }
-  if (els.slicerScene) {
-    els.slicerScene.style.backgroundImage = file.type.startsWith("image/")
-      ? `linear-gradient(rgba(8, 16, 32, 0.42), rgba(8, 16, 32, 0.42)), url("${url}")`
-      : "";
+  if (els.medicalViewerImage && els.medicalViewerPlaceholder) {
+    els.medicalViewerPlaceholder.hidden = true;
+    els.medicalViewerImage.hidden = !file.type.startsWith("image/");
+    els.medicalViewerImage.src = file.type.startsWith("image/") ? url : "";
+    els.medicalViewerImage.onload = renderDetectionBoxes;
   }
   updateImageInfoUi();
-  if (els.predictBtn) els.predictBtn.disabled = !localApiOnline;
+  if (els.predictBtn) els.predictBtn.disabled = !localApiOnline || !editorToken();
   appendLog(`[demo] uploaded file=${file.name}`);
 });
 
@@ -1631,7 +1694,10 @@ els.chart?.addEventListener("mousemove", handleChartPointerMove);
 els.chart?.addEventListener("mouseleave", hideChartTooltip);
 els.chart?.addEventListener("click", handleChartClick);
 els.checkSystemBtn?.addEventListener("click", checkSystemStatus);
-els.visitorModeBtn?.addEventListener("click", () => setAccessMode("visitor"));
+els.visitorModeBtn?.addEventListener("click", () => {
+  sessionStorage.removeItem(editorSessionKey);
+  setAccessMode("visitor");
+});
 els.editorModeBtn?.addEventListener("click", requestEditorMode);
 els.openModelModalBtn?.addEventListener("click", openModelModal);
 els.closeModelModalBtn?.addEventListener("click", closeModelModal);

@@ -22,6 +22,8 @@ python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
 ```powershell
 $env:MODEL_PATH="D:\dental_ai_system\models\current_model.pt"
 $env:LOCAL_TRUSTED_MODE="1"
+$env:ADMIN_USERNAME="dentex-admin"
+$env:ADMIN_PASSWORD="設定一組只有你知道的長密碼"
 $env:CORS_ORIGINS="https://astounding-cascaron-273497.netlify.app,http://127.0.0.1:8765"
 python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
 ```

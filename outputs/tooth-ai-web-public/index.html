@@ -113,7 +113,7 @@
         </div>
         <div class="runtime-stack">
           <span id="modelStatus" class="runtime-pill online">實驗版：72 組結果已載入</span>
-          <span id="slicerBridgeStatus" class="runtime-pill offline">3D Slicer：未連接</span>
+          <span id="slicerBridgeStatus" class="runtime-pill online">2D 檢視器：已就緒</span>
         </div>
         <div class="strip-actions">
           <button id="checkSystemBtn" type="button">連線本機模型</button>
@@ -696,7 +696,7 @@
               <span id="previewLabel">目前選擇：蛀牙範例</span>
             </div>
             <label class="upload">
-              <input id="imageUpload" type="file" accept="image/png,image/jpeg,image/webp,image/bmp,image/gif,application/dicom,.dcm" />
+              <input id="imageUpload" type="file" accept="image/png,image/jpeg,image/webp,image/bmp" />
               上傳牙科 X-ray 圖片
             </label>
             <div class="demo-buttons">
@@ -758,28 +758,25 @@
           <div class="panel slicer-panel">
             <div class="slicer-head">
               <div>
-                <span>3D Slicer 風格閱片畫面</span>
-                <strong id="slicerStatus">人工標註預覽</strong>
+                <span>2D X-ray 閱片畫面</span>
+                <strong id="slicerStatus">等待本機推論</strong>
               </div>
               <button id="saveDemoBtn">儲存照片資訊</button>
             </div>
-            <div class="slicer-viewer" aria-label="3D Slicer style medical image viewer">
+            <div class="slicer-viewer" aria-label="2D dental X-ray medical image viewer">
               <div class="slicer-toolbar">
-                <span>Axial</span>
-                <span>Sagittal</span>
-                <span>Coronal</span>
-                <span>3D</span>
+                <span>OPG</span>
+                <span>Detection Overlay</span>
+                <span>cavity</span>
+                <span>wisdom_tooth</span>
               </div>
               <div id="slicerScene" class="slicer-scene">
-                <div class="scan-grid"></div>
-                <div class="scan-cross horizontal"></div>
-                <div class="scan-cross vertical"></div>
-                <div id="slicerFindingBox" class="finding-box">
-                  <span id="slicerFindingLabel">選擇標註類別</span>
-                </div>
+                <div id="medicalViewerPlaceholder" class="medical-viewer-placeholder">上傳 OPG X-ray 後，在此顯示原圖與偵測框。</div>
+                <img id="medicalViewerImage" class="medical-viewer-image" alt="上傳的 OPG X-ray" hidden />
+                <div id="detectionOverlay" class="detection-overlay" aria-live="polite"></div>
               </div>
             </div>
-            <p class="slicer-note">此區為類 3D Slicer 的閱片與標註預覽，不會假裝已連接 Slicer。正式推論 API 上線後，才會回傳 YOLO 偵測框、類別與信心指數。</p>
+            <p class="slicer-note">這是網頁端 2D OPG 檢視器。偵測框、類別與信心值來自本機 YOLO API；未推論前不顯示假結果。</p>
           </div>
           <div class="panel image-info-panel">
             <h3>照片與推論資訊</h3>

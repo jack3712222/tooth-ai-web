@@ -1695,6 +1695,59 @@ th {
   background-position: center;
 }
 
+.medical-viewer-placeholder {
+  display: grid;
+  place-items: center;
+  min-height: 360px;
+  padding: 24px;
+  color: #cbd5e1;
+  text-align: center;
+  font-weight: 800;
+}
+
+.medical-viewer-image {
+  display: block;
+  width: 100%;
+  min-height: 360px;
+  max-height: 560px;
+  object-fit: contain;
+  background: #050816;
+}
+
+.detection-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.detection-box {
+  position: absolute;
+  box-sizing: border-box;
+  border: 3px solid #f97316;
+  box-shadow: 0 0 12px rgba(249, 115, 22, .62);
+}
+
+.detection-box.wisdom {
+  border-color: #38bdf8;
+  box-shadow: 0 0 12px rgba(56, 189, 248, .62);
+}
+
+.detection-box span {
+  position: absolute;
+  top: -25px;
+  left: -3px;
+  padding: 3px 6px;
+  color: #ffffff;
+  background: #c2410c;
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.detection-box.wisdom span {
+  background: #0369a1;
+}
+
 .scan-grid {
   position: absolute;
   inset: 0;

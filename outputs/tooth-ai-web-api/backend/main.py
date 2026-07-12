@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 import hmac
+import io
 import os
+import secrets
 import sqlite3
 import time
 import uuid
@@ -13,9 +15,13 @@ from typing import Any
 import requests
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
+from PIL import Image, UnidentifiedImageError
+from dotenv import load_dotenv
 
 
 BASE_DIR = Path(__file__).resolve().parents[1]
+load_dotenv(BASE_DIR / ".env.local")
 DATA_DIR = BASE_DIR / "data"
 UPLOAD_DIR = DATA_DIR / "uploads"
 BACKUP_DIR = DATA_DIR / "backups"
@@ -24,9 +30,13 @@ SLICER_URL = os.getenv("SLICER_URL", "http://127.0.0.1:18901")
 MODEL_PATH = Path(os.getenv("MODEL_PATH", r"D:\dental_ai_system\models\current_model.pt"))
 ALLOW_MOCK = os.getenv("ALLOW_MOCK", "0") == "1"
 API_TOKEN = os.getenv("API_TOKEN", "")
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "dentex-admin")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
 LOCAL_TRUSTED_MODE = os.getenv("LOCAL_TRUSTED_MODE", "0") == "1"
+ENABLE_SLICER_BRIDGE = os.getenv("ENABLE_SLICER_BRIDGE", "0") == "1"
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(8 * 1024 * 1024)))
 BACKUP_INTERVAL_SECONDS = int(os.getenv("BACKUP_INTERVAL_SECONDS", "300"))
+SESSION_TTL_SECONDS = int(os.getenv("SESSION_TTL_SECONDS", str(8 * 60 * 60)))
 last_backup_at = 0.0
 
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
@@ -47,6 +57,9 @@ async def allow_private_network_access(request, call_next):
     """Allow the HTTPS dashboard to call a loopback-only local API."""
     response = await call_next(request)
     response.headers["Access-Control-Allow-Private-Network"] = "true"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Cache-Control"] = "no-store"
     return response
 
 
@@ -70,17 +83,60 @@ def db() -> sqlite3.Connection:
         )
         """
     )
+    conn.execute(
+        """
+        create table if not exists sessions (
+            token_hash text primary key,
+            username text not null,
+            expires_at real not null,
+            created_at real not null
+        )
+        """
+    )
+    conn.execute(
+        """
+        create table if not exists audit_log (
+            id text primary key,
+            created_at real not null,
+            username text not null,
+            action text not null,
+            record_id text
+        )
+        """
+    )
     return conn
 
 
-def require_api_token(x_api_key: str | None = Header(default=None)) -> None:
-    """Protect image records and inference from public access."""
-    if LOCAL_TRUSTED_MODE:
-        return
-    if not API_TOKEN:
-        raise HTTPException(status_code=503, detail="API_TOKEN is not configured")
-    if not x_api_key or not hmac.compare_digest(x_api_key, API_TOKEN):
-        raise HTTPException(status_code=401, detail="invalid API key")
+def hash_token(token: str) -> str:
+    import hashlib
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def log_audit(username: str, action: str, record_id: str | None = None) -> None:
+    with db() as conn:
+        conn.execute("insert into audit_log values (?, ?, ?, ?, ?)", (uuid.uuid4().hex, time.time(), username, action, record_id))
+
+
+def require_editor(authorization: str | None = Header(default=None)) -> str:
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="editor authentication required")
+    token_hash = hash_token(authorization.removeprefix("Bearer ").strip())
+    with db() as conn:
+        row = conn.execute("select username, expires_at from sessions where token_hash = ?", (token_hash,)).fetchone()
+        conn.execute("delete from sessions where expires_at < ?", (time.time(),))
+    if row is None or row["expires_at"] < time.time():
+        raise HTTPException(status_code=401, detail="editor session expired")
+    return str(row["username"])
+
+
+class LoginRequest(BaseModel):
+    username: str = Field(min_length=1, max_length=80)
+    password: str = Field(min_length=8, max_length=256)
+
+
+class RecordUpdate(BaseModel):
+    prediction: str = Field(pattern="^(cavity|wisdom_tooth|No Finding)$")
+    confidence: float = Field(ge=0, le=1)
 
 
 def create_backup_if_due() -> None:
@@ -99,9 +155,27 @@ def create_backup_if_due() -> None:
 
 def row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
     item = dict(row)
+    item.pop("image_path", None)
     item["boxes"] = json.loads(item.pop("boxes_json"))
     item["slicer"] = json.loads(item.pop("slicer_json"))
     return item
+
+
+def validated_image(content: bytes) -> tuple[str, str]:
+    if not content:
+        raise HTTPException(status_code=400, detail="empty upload")
+    if len(content) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="file too large")
+    try:
+        image = Image.open(io.BytesIO(content))
+        image.verify()
+    except (UnidentifiedImageError, OSError) as exc:
+        raise HTTPException(status_code=415, detail="invalid image file") from exc
+    image_type = Image.open(io.BytesIO(content)).format or ""
+    formats = {"JPEG": (".jpg", "image/jpeg"), "PNG": (".png", "image/png"), "WEBP": (".webp", "image/webp"), "BMP": (".bmp", "image/bmp")}
+    if image_type not in formats:
+        raise HTTPException(status_code=415, detail="unsupported image format")
+    return formats[image_type]
 
 
 def call_slicer(image_path: Path) -> dict[str, Any]:
@@ -175,7 +249,35 @@ def health() -> dict[str, Any]:
     }
 
 
-@app.get("/slicer/status", dependencies=[Depends(require_api_token)])
+@app.post("/auth/login")
+def login(credentials: LoginRequest) -> dict[str, Any]:
+    if not ADMIN_PASSWORD:
+        raise HTTPException(status_code=503, detail="ADMIN_PASSWORD is not configured")
+    if not hmac.compare_digest(credentials.username, ADMIN_USERNAME) or not hmac.compare_digest(credentials.password, ADMIN_PASSWORD):
+        raise HTTPException(status_code=401, detail="invalid username or password")
+    token = secrets.token_urlsafe(32)
+    expires_at = time.time() + SESSION_TTL_SECONDS
+    with db() as conn:
+        conn.execute("insert into sessions values (?, ?, ?, ?)", (hash_token(token), ADMIN_USERNAME, expires_at, time.time()))
+    log_audit(ADMIN_USERNAME, "login")
+    return {"access_token": token, "token_type": "bearer", "expires_at": expires_at, "username": ADMIN_USERNAME}
+
+
+@app.get("/auth/session")
+def session(username: str = Depends(require_editor)) -> dict[str, str]:
+    return {"username": username, "role": "editor"}
+
+
+@app.post("/auth/logout")
+def logout(authorization: str | None = Header(default=None), username: str = Depends(require_editor)) -> dict[str, bool]:
+    token_hash = hash_token((authorization or "").removeprefix("Bearer ").strip())
+    with db() as conn:
+        conn.execute("delete from sessions where token_hash = ?", (token_hash,))
+    log_audit(username, "logout")
+    return {"ok": True}
+
+
+@app.get("/slicer/status", dependencies=[Depends(require_editor)])
 def slicer_status() -> dict[str, Any]:
     try:
         response = requests.get(f"{SLICER_URL}/health", timeout=2)
@@ -185,24 +287,19 @@ def slicer_status() -> dict[str, Any]:
         return {"connected": False, "error": str(exc)}
 
 
+
 @app.post("/predict")
 async def predict(
     file: UploadFile = File(...),
     prediction: str | None = Form(default=None),
     confidence: float | None = Form(default=None),
-    _: None = Depends(require_api_token),
+    username: str = Depends(require_editor),
 ) -> dict[str, Any]:
     filename = file.filename or "image"
-    is_dicom = filename.lower().endswith(".dcm")
-    if file.content_type not in {"image/png", "image/jpeg", "image/webp", "image/bmp", "image/gif", "application/dicom"} and not is_dicom:
-        raise HTTPException(status_code=415, detail="unsupported image type")
-
     record_id = uuid.uuid4().hex
-    suffix = Path(filename).suffix.lower() or ".bin"
-    image_path = UPLOAD_DIR / f"{record_id}{suffix}"
     content = await file.read()
-    if len(content) > MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=413, detail="file too large")
+    suffix, image_type = validated_image(content)
+    image_path = UPLOAD_DIR / f"{record_id}{suffix}"
     image_path.write_bytes(content)
 
     try:
@@ -211,13 +308,13 @@ async def predict(
         if not ALLOW_MOCK:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
         label, conf, boxes, inference_ms = mock_yolo_result(prediction, confidence)
-    slicer_result = call_slicer(image_path)
+    slicer_result = call_slicer(image_path) if ENABLE_SLICER_BRIDGE else {"connected": False, "status": "disabled"}
 
     record = {
         "id": record_id,
         "created_at": time.time(),
         "image_name": filename,
-        "image_type": file.content_type or ("application/dicom" if is_dicom else "unknown"),
+        "image_type": image_type,
         "image_size": len(content),
         "image_path": str(image_path),
         "prediction": label,
@@ -246,18 +343,21 @@ async def predict(
             ),
         )
     create_backup_if_due()
-    return record
+    log_audit(username, "predict", record_id)
+    public_record = dict(record)
+    public_record.pop("image_path", None)
+    return public_record
 
 
-@app.get("/records", dependencies=[Depends(require_api_token)])
-def records() -> list[dict[str, Any]]:
+@app.get("/records")
+def records(username: str = Depends(require_editor)) -> list[dict[str, Any]]:
     with db() as conn:
         rows = conn.execute("select * from records order by created_at desc limit 50").fetchall()
     return [row_to_dict(row) for row in rows]
 
 
-@app.get("/records/{record_id}", dependencies=[Depends(require_api_token)])
-def record(record_id: str) -> dict[str, Any]:
+@app.get("/records/{record_id}")
+def record(record_id: str, username: str = Depends(require_editor)) -> dict[str, Any]:
     with db() as conn:
         row = conn.execute("select * from records where id = ?", (record_id,)).fetchone()
     if row is None:
@@ -265,8 +365,21 @@ def record(record_id: str) -> dict[str, Any]:
     return row_to_dict(row)
 
 
-@app.get("/backups", dependencies=[Depends(require_api_token)])
-def backups() -> list[dict[str, Any]]:
+@app.patch("/records/{record_id}")
+def update_record(record_id: str, update: RecordUpdate, username: str = Depends(require_editor)) -> dict[str, Any]:
+    with db() as conn:
+        row = conn.execute("select * from records where id = ?", (record_id,)).fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="record not found")
+        conn.execute("update records set prediction = ?, confidence = ? where id = ?", (update.prediction, update.confidence, record_id))
+        updated = conn.execute("select * from records where id = ?", (record_id,)).fetchone()
+    create_backup_if_due()
+    log_audit(username, "update_record", record_id)
+    return row_to_dict(updated)
+
+
+@app.get("/backups")
+def backups(username: str = Depends(require_editor)) -> list[dict[str, Any]]:
     return [
         {"name": path.name, "created_at": path.stat().st_mtime, "size": path.stat().st_size}
         for path in sorted(BACKUP_DIR.glob("records-*.sqlite3"), key=lambda item: item.stat().st_mtime, reverse=True)
