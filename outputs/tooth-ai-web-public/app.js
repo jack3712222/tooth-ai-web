@@ -348,10 +348,145 @@ function closeModelModal() {
 
 function setArchitectureMode(mode) {
   const full = mode === "full";
-  if (els.simpleArch) els.simpleArch.hidden = full;
-  if (els.fullArch) els.fullArch.hidden = !full;
+  if (els.simpleArch) {
+    els.simpleArch.hidden = full;
+    els.simpleArch.style.display = full ? "none" : "block";
+  }
+  if (els.fullArch) {
+    els.fullArch.hidden = !full;
+    els.fullArch.style.display = full ? "block" : "none";
+  }
   els.archSimpleBtn?.classList.toggle("active", !full);
   els.archFullBtn?.classList.toggle("active", full);
+  window.requestAnimationFrame(renderYoloArchitectureDiagrams);
+}
+
+function prepareArchitectureCanvas(canvas, height) {
+  if (!canvas) return null;
+  const rect = canvas.getBoundingClientRect();
+  const width = Math.max(320, Math.floor(rect.width));
+  const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = width * pixelRatio;
+  canvas.height = height * pixelRatio;
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+  ctx.clearRect(0, 0, width, height);
+  return { ctx, width, height };
+}
+
+function drawArchitectureArrow(ctx, fromX, fromY, toX, toY, color = "#0f766e") {
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(fromX, fromY);
+  ctx.lineTo(toX, toY);
+  ctx.stroke();
+  const angle = Math.atan2(toY - fromY, toX - fromX);
+  ctx.beginPath();
+  ctx.moveTo(toX, toY);
+  ctx.lineTo(toX - 10 * Math.cos(angle - Math.PI / 6), toY - 10 * Math.sin(angle - Math.PI / 6));
+  ctx.lineTo(toX - 10 * Math.cos(angle + Math.PI / 6), toY - 10 * Math.sin(angle + Math.PI / 6));
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawFeatureMap(ctx, x, y, radiusX, radiusY, color, label, detail = "") {
+  ctx.save();
+  for (let layer = 2; layer >= 0; layer -= 1) {
+    ctx.globalAlpha = 0.17 + (2 - layer) * 0.14;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.ellipse(x - layer * 7, y - layer * 5, radiusX, radiusY, -0.12, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.ellipse(x, y, radiusX, radiusY, -0.12, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.fillStyle = "#17324d";
+  ctx.font = "700 13px Arial";
+  ctx.textAlign = "center";
+  ctx.fillText(label, x, y + radiusY + 24);
+  if (detail) {
+    ctx.fillStyle = "#667085";
+    ctx.font = "600 11px Arial";
+    ctx.fillText(detail, x, y + radiusY + 40);
+  }
+  ctx.restore();
+}
+
+function drawArchitectureTitle(ctx, title, subtitle, width) {
+  ctx.fillStyle = "#102a43";
+  ctx.font = "800 17px Arial";
+  ctx.textAlign = "left";
+  ctx.fillText(title, 22, 29);
+  ctx.fillStyle = "#667085";
+  ctx.font = "600 11px Arial";
+  ctx.fillText(subtitle, 22, 47);
+  ctx.strokeStyle = "#dbe7f4";
+  ctx.beginPath();
+  ctx.moveTo(22, 60);
+  ctx.lineTo(width - 22, 60);
+  ctx.stroke();
+}
+
+function renderYoloArchitectureDiagrams() {
+  const simple = prepareArchitectureCanvas(document.querySelector("#simpleArchCanvas"), 255);
+  if (simple) {
+    const { ctx, width } = simple;
+    drawArchitectureTitle(ctx, "YOLOv8m Detection Pipeline", "Ultralytics YOLOv8: Backbone → PAN-FPN → Detect", width);
+    const nodes = [
+      [width * 0.12, 138, 29, 46, "#64748b", "Input", "OPG X-ray / 1280"],
+      [width * 0.37, 138, 34, 58, "#2563eb", "Backbone", "Conv · C2f · SPPF"],
+      [width * 0.63, 138, 37, 52, "#0f766e", "Neck", "PAN-FPN fusion"],
+      [width * 0.88, 138, 30, 45, "#c26a12", "Detect", "P3 · P4 · P5"],
+    ];
+    nodes.forEach((node, index) => {
+      if (index > 0) drawArchitectureArrow(ctx, nodes[index - 1][0] + nodes[index - 1][2] + 16, 138, node[0] - node[2] - 16, 138, node[4]);
+      drawFeatureMap(ctx, ...node);
+    });
+    ctx.fillStyle = "#475467";
+    ctx.font = "700 11px Arial";
+    ctx.textAlign = "center";
+    ctx.fillText("2 classes: cavity / wisdom_tooth", width * 0.88, 224);
+  }
+
+  const full = prepareArchitectureCanvas(document.querySelector("#fullArchCanvas"), 475);
+  if (!full) return;
+  const { ctx, width } = full;
+  drawArchitectureTitle(ctx, "YOLOv8m Architecture", "Exact high-level topology from the YOLOv8 YAML: Conv, C2f, SPPF, PAN-FPN and Detect", width);
+  const left = width * 0.19;
+  const middle = width * 0.51;
+  const right = width * 0.83;
+  const backbone = [
+    [105, "Input", "1280 x 1280"], [155, "Conv", "P1 / 2"], [205, "C2f", "P2 / 4"], [255, "C2f", "P3 / 8"], [305, "C2f", "P4 / 16"], [355, "C2f + SPPF", "P5 / 32"],
+  ];
+  backbone.forEach(([y, label, detail], index) => {
+    drawFeatureMap(ctx, left, y, 31 - index * 1.5, 15 + index * 1.8, "#2563eb", label, detail);
+    if (index > 0) drawArchitectureArrow(ctx, left, y - 27, left, y - 19, "#2563eb");
+  });
+  const neck = [[175, "Upsample + Concat", "P5 → P4"], [230, "C2f", "P4 refined"], [275, "Upsample + Concat", "P4 → P3"], [330, "C2f", "P3 refined"], [375, "Downsample + Concat", "P3 → P4"], [420, "C2f", "P4 / P5 refined"]];
+  neck.forEach(([y, label, detail], index) => {
+    drawFeatureMap(ctx, middle, y, 39, 13, "#0f766e", label, detail);
+    if (index > 0) drawArchitectureArrow(ctx, middle, y - 25, middle, y - 16, "#0f766e");
+  });
+  drawArchitectureArrow(ctx, left + 42, 355, middle - 48, 175, "#0f766e");
+  drawArchitectureArrow(ctx, left + 39, 305, middle - 47, 275, "#0f766e");
+  drawArchitectureArrow(ctx, left + 36, 255, middle - 47, 375, "#0f766e");
+  const heads = [[275, "Detect P3 / 8", "small objects"], [345, "Detect P4 / 16", "medium objects"], [415, "Detect P5 / 32", "large objects"]];
+  heads.forEach(([y, label, detail], index) => {
+    drawFeatureMap(ctx, right, y, 42, 17, "#c26a12", label, detail);
+    drawArchitectureArrow(ctx, middle + 48, neck[index + 2][0], right - 52, y, "#c26a12");
+  });
+  ctx.fillStyle = "#17324d";
+  ctx.font = "800 12px Arial";
+  ctx.textAlign = "center";
+  ctx.fillText("Box regression · class score · confidence", right, 456);
 }
 
 function setParamGroups(open) {
@@ -1566,3 +1701,6 @@ updateConfigSummary();
 renderComboResults();
 renderDataBrowser();
 checkSystemStatus();
+setArchitectureMode("simple");
+renderYoloArchitectureDiagrams();
+window.addEventListener("resize", () => window.requestAnimationFrame(renderYoloArchitectureDiagrams));

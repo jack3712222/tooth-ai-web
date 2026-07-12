@@ -648,6 +648,38 @@ h3 {
   margin-top: 14px;
 }
 
+.architecture-diagram[hidden] {
+  display: none !important;
+}
+
+.yolo-architecture-canvas {
+  display: block;
+  width: 100%;
+  height: 255px;
+  border: 1px solid #dbe7f4;
+  border-radius: 8px;
+  background: radial-gradient(circle at 50% 0%, #f8fcff 0%, #ffffff 62%);
+}
+
+.full-yolo-canvas {
+  height: 475px;
+}
+
+.architecture-caption {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  align-items: baseline;
+  margin-top: 10px;
+  color: #475467;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.architecture-caption strong {
+  color: #0f766e;
+}
+
 .simple-architecture {
   display: grid;
   grid-template-columns: minmax(130px, 1fr) auto minmax(190px, 1.3fr) auto minmax(180px, 1.2fr) auto minmax(170px, 1.15fr);
@@ -888,6 +920,23 @@ h3 {
   color: var(--muted);
   font-weight: 800;
 }
+
+.param-type {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 7px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  letter-spacing: 0;
+  color: #ffffff;
+  vertical-align: middle;
+}
+
+.param-type.training { background: #2563eb; }
+.param-type.data { background: #0f766e; }
+.param-type.optimizer { background: #c26a12; }
+.param-type.model { background: #7c3aed; }
 
 .param-group .catalog-table-wrap {
   padding: 10px;

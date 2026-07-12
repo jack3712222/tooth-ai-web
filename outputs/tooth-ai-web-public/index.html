@@ -355,65 +355,12 @@
             <article><span>輸出類別</span><strong>2 classes</strong><small>cavity / wisdom_tooth</small></article>
           </div>
           <div id="simpleArch" class="architecture-diagram simple-architecture">
-            <div class="arch-flow">
-              <div class="arch-node input-node">
-                <span>01 Input</span>
-                <strong>OPG X-ray</strong>
-                <small>imgsz 1280</small>
-              </div>
-              <div class="arch-connector"></div>
-              <div class="arch-node backbone-node">
-                <span>02 Backbone</span>
-                <strong>Conv + C2f + SPPF</strong>
-                <small>抽取牙科影像特徵</small>
-              </div>
-              <div class="arch-connector"></div>
-              <div class="arch-node neck-node">
-                <span>03 Neck</span>
-                <strong>FPN / PAN feature fusion</strong>
-                <small>融合 P3、P4、P5 尺度</small>
-              </div>
-              <div class="arch-connector"></div>
-              <div class="arch-node detect-node">
-                <span>04 Detect Head</span>
-                <strong>Box + Class + Confidence</strong>
-                <small>cavity / wisdom_tooth</small>
-              </div>
-            </div>
+            <canvas id="simpleArchCanvas" class="yolo-architecture-canvas" role="img" aria-label="YOLOv8m 簡化架構圖：輸入影像、Backbone、Neck 與 Detect Head"></canvas>
+            <div class="architecture-caption"><strong>YOLOv8m 簡圖</strong><span>Input → Backbone (Conv / C2f / SPPF) → PAN-FPN Neck → Detect P3/P4/P5</span></div>
           </div>
           <div id="fullArch" class="architecture-diagram full-architecture" hidden>
-            <div class="arch-column">
-              <h4>Backbone 特徵抽取</h4>
-              <div class="arch-step">01 Conv P1/2</div>
-              <div class="arch-step">02 Conv P2/4</div>
-              <div class="arch-step">03 C2f</div>
-              <div class="arch-step">04 Conv P3/8 + C2f</div>
-              <div class="arch-step">05 Conv P4/16 + C2f</div>
-              <div class="arch-step">06 Conv P5/32 + C2f + SPPF</div>
-            </div>
-            <div class="arch-column arch-column-middle">
-              <h4>Neck 多尺度融合</h4>
-              <div class="scale-branch"><span>P5 → Upsample → Concat P4</span><b></b></div>
-              <div class="scale-branch"><span>P4 → Upsample → Concat P3</span><b></b></div>
-              <div class="scale-branch"><span>P3 → Downsample → P4</span><b></b></div>
-              <div class="scale-branch"><span>P4 → Downsample → P5</span><b></b></div>
-              <div class="arch-step">C2f feature refinement</div>
-            </div>
-            <div class="arch-column">
-              <h4>Detect Head 輸出</h4>
-              <div class="detect-scales">
-                <div><strong>P3/8</strong><span>small target</span></div>
-                <div><strong>P4/16</strong><span>medium target</span></div>
-                <div><strong>P5/32</strong><span>large target</span></div>
-              </div>
-              <div class="arch-output-grid">
-                <div>Box regression</div>
-                <div>Class logits</div>
-                <div>Confidence</div>
-                <div>cavity</div>
-                <div>wisdom_tooth</div>
-              </div>
-            </div>
+            <canvas id="fullArchCanvas" class="yolo-architecture-canvas full-yolo-canvas" role="img" aria-label="YOLOv8m 完整架構圖：Backbone、SPPF、PAN-FPN Neck 與三個偵測尺度"></canvas>
+            <div class="architecture-caption"><strong>YOLOv8m 完整結構</strong><span>Conv / C2f / SPPF → Upsample / Concat / C2f → Detect (P3/8, P4/16, P5/32)</span></div>
           </div>
           <div class="model-detail-grid">
             <article>
@@ -437,7 +384,7 @@
               </div>
             </div>
             <details class="param-group" open>
-              <summary><span>訓練超參數</span><small>training schedule, loss, output</small></summary>
+              <summary><span>訓練超參數 <b class="param-type training">Training</b></span><small>training schedule, loss, output</small></summary>
               <div class="catalog-table-wrap">
                 <table class="catalog-table">
                   <thead><tr><th>項次</th><th>超參數</th><th>官方預設/常見值</th><th>本專案設定</th><th>狀態</th></tr></thead>
@@ -459,7 +406,7 @@
               </div>
             </details>
             <details class="param-group">
-              <summary><span>資料超參數</span><small>dataset, image transform, augmentation</small></summary>
+              <summary><span>資料超參數 <b class="param-type data">Data</b></span><small>dataset, image transform, augmentation</small></summary>
               <div class="catalog-table-wrap">
                 <table class="catalog-table">
                   <thead><tr><th>項次</th><th>超參數</th><th>官方預設/常見值</th><th>本專案設定</th><th>狀態</th></tr></thead>
@@ -477,26 +424,24 @@
               </div>
             </details>
             <details class="param-group">
-              <summary><span>優化器超參數</span><small>YOLO optimizer + PyTorch AdamW</small></summary>
+              <summary><span>AdamW 優化器超參數 <b class="param-type optimizer">Optimizer</b></span><small>PyTorch AdamW</small></summary>
               <div class="catalog-table-wrap">
                 <table class="catalog-table">
                   <thead><tr><th>項次</th><th>超參數</th><th>官方預設/常見值</th><th>本專案設定</th><th>狀態</th></tr></thead>
                   <tbody>
-                    <tr><td>1</td><td>optimizer</td><td>auto / SGD / Adam / AdamW</td><td>AdamW</td><td><span class="tag fixed">固定</span></td></tr>
-                    <tr><td>2</td><td>lr0 / AdamW lr</td><td>YOLO 0.01；AdamW 0.001</td><td>0.0001 / 0.001 / 0.01</td><td><span class="tag searched">本次搜尋</span></td></tr>
-                    <tr><td>3</td><td>lrf</td><td>0.01</td><td>使用預設</td><td><span class="tag defaulted">使用預設</span></td></tr>
-                    <tr><td>4</td><td>momentum / AdamW beta1</td><td>0.937 / betas=(0.9, 0.999)</td><td>0.900 / 0.937</td><td><span class="tag searched">本次搜尋</span></td></tr>
-                    <tr><td>5</td><td>weight_decay</td><td>YOLO 0.0005；AdamW 0.01</td><td>0.001 / 0.010 / 0.100</td><td><span class="tag searched">本次搜尋</span></td></tr>
-                    <tr><td>6</td><td>cos_lr / scheduler</td><td>False</td><td>linear / cosine</td><td><span class="tag searched">本次搜尋</span></td></tr>
-                    <tr><td>7</td><td>AdamW eps</td><td>1e-8</td><td>使用預設</td><td><span class="tag defaulted">使用預設</span></td></tr>
-                    <tr><td>8</td><td>AdamW amsgrad / maximize</td><td>False / False</td><td>使用預設</td><td><span class="tag defaulted">使用預設</span></td></tr>
-                    <tr><td>9</td><td>AdamW foreach / fused</td><td>None / None</td><td>由 PyTorch 環境決定</td><td><span class="tag defaulted">使用預設</span></td></tr>
+                    <tr><td>1</td><td>optimizer</td><td>AdamW</td><td>AdamW</td><td><span class="tag fixed">固定</span></td></tr>
+                    <tr><td>2</td><td>lr / lr0</td><td>AdamW lr=0.001</td><td>0.0001 / 0.001 / 0.01</td><td><span class="tag searched">本次搜尋</span></td></tr>
+                    <tr><td>3</td><td>betas (beta1 / beta2)</td><td>(0.9, 0.999)</td><td>beta1 對應 momentum：0.900 / 0.937；beta2 使用預設</td><td><span class="tag searched">本次搜尋</span></td></tr>
+                    <tr><td>4</td><td>weight_decay</td><td>0.01</td><td>0.001 / 0.010 / 0.100</td><td><span class="tag searched">本次搜尋</span></td></tr>
+                    <tr><td>5</td><td>eps</td><td>1e-8</td><td>使用預設</td><td><span class="tag defaulted">使用預設</span></td></tr>
+                    <tr><td>6</td><td>amsgrad / maximize</td><td>False / False</td><td>使用預設</td><td><span class="tag defaulted">使用預設</span></td></tr>
+                    <tr><td>7</td><td>foreach / fused</td><td>None / None</td><td>由 PyTorch 環境決定</td><td><span class="tag defaulted">使用預設</span></td></tr>
                   </tbody>
                 </table>
               </div>
             </details>
             <details class="param-group">
-              <summary><span>模型超參數</span><small>model scale, weights, head</small></summary>
+              <summary><span>模型超參數 <b class="param-type model">Model</b></span><small>model scale, weights, head</small></summary>
               <div class="catalog-table-wrap">
                 <table class="catalog-table">
                   <thead><tr><th>項次</th><th>超參數</th><th>官方預設/常見值</th><th>本專案設定</th><th>狀態</th></tr></thead>
