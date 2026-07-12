@@ -10,7 +10,7 @@
     />
     <meta name="referrer" content="no-referrer" />
     <title>牙齒 AI 檢測平台</title>
-    <link rel="stylesheet" href="./styles.css?v=20260713-access" />
+    <link rel="stylesheet" href="./styles.css?v=20260713-human" />
   </head>
   <body>
     <header class="sidebar">
@@ -124,6 +124,19 @@
           <button id="visitorModeBtn" type="button">訪客模式</button>
           <button id="editorModeBtn" type="button">登入編輯</button>
         </div>
+      </section>
+
+      <section class="mode-guide tab-page active" data-tab-page="overview" aria-label="使用模式說明">
+        <article>
+          <span>訪客模式</span>
+          <strong>可以看資料、看結果、上傳 X-ray 做 Demo</strong>
+          <small>推論需要本機 API；Demo 紀錄只存在目前瀏覽器，不會寫入後台。</small>
+        </article>
+        <article>
+          <span>編輯模式</span>
+          <strong>用來管理模型、修正結果、查看後台紀錄</strong>
+          <small>登入後才會出現「後台」與「模型管理」，也能把推論紀錄寫進本機資料庫。</small>
+        </article>
       </section>
 
       <section class="dashboard-band tab-page active" data-tab-page="overview" aria-label="最佳模型儀表板">
@@ -723,6 +736,7 @@
             </div>
             <button id="predictBtn" class="primary full" type="button" disabled>使用本機模型推論</button>
             <p id="localInferenceHelp" class="notice">請先在本機啟動 API，再按「連線本機模型」。模型與影像不會上傳雲端。</p>
+            <p class="visitor-note">訪客也可以使用 Demo。只有「修改結果、切換模型、後台紀錄」需要登入編輯模式。</p>
           </div>
           <div class="panel demo-output">
             <h3>推論結果</h3>
@@ -733,7 +747,7 @@
             </div>
             <div class="prob-list" id="probList"></div>
             <div class="edit-result-panel">
-              <h4>修改結果</h4>
+              <h4>修改結果 <span>編輯模式</span></h4>
               <div class="edit-controls">
                 <label>Prediction
                   <select id="manualPredictionInput">
@@ -798,6 +812,7 @@
           </div>
           <div class="panel image-info-panel">
             <h3>照片與推論資訊</h3>
+            <p class="visitor-note">訪客儲存會保留在本瀏覽器；登入編輯後儲存，才會同步到本機後台。</p>
             <dl class="kv compact">
               <div><dt>Image Name</dt><dd id="imageNameValue">sample-cavity.png</dd></div>
               <div><dt>Image Type</dt><dd id="imageTypeValue">demo sample</dd></div>
@@ -827,6 +842,7 @@
         <div class="section-head">
           <p class="eyebrow">Administration</p>
           <h2>後台管理</h2>
+          <p>後台只在編輯模式顯示，用來看本機 API 的推論紀錄、自動備份、目前使用模型與操作紀錄。</p>
         </div>
         <div class="admin-summary-grid">
           <article class="panel"><span>已儲存推論</span><strong id="adminRecordCount">--</strong><small>僅編輯模式儲存</small></article>
@@ -899,6 +915,6 @@
     </main>
 
     <script src="./data-records.js?v=20260707-photos"></script>
-    <script src="./app.js?v=20260713-access"></script>
+    <script src="./app.js?v=20260713-human"></script>
   </body>
 </html>

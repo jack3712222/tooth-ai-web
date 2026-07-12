@@ -745,13 +745,13 @@ function setAccessMode(mode) {
   });
   [
     els.applyEditBtn,
-    els.saveDemoBtn,
-    els.clearRecordsBtn,
     els.manualPredictionInput,
     els.manualConfidenceInput,
   ].forEach((control) => {
     if (control) control.disabled = !editorEnabled;
   });
+  if (els.saveDemoBtn) els.saveDemoBtn.disabled = false;
+  if (els.clearRecordsBtn) els.clearRecordsBtn.disabled = false;
   els.visitorModeBtn?.classList.toggle("active", !editorEnabled);
   els.editorModeBtn?.classList.toggle("active", editorEnabled);
   if (els.accessModeLabel) {
@@ -759,7 +759,8 @@ function setAccessMode(mode) {
     els.accessModeLabel.classList.toggle("editor", editorEnabled);
     els.accessModeLabel.classList.toggle("visitor", !editorEnabled);
   }
-  if (els.editorModeBtn) els.editorModeBtn.textContent = editorEnabled ? "編輯模式" : "登入編輯";
+  if (els.editorModeBtn) els.editorModeBtn.textContent = editorEnabled ? "編輯中" : "登入編輯";
+  if (els.saveDemoBtn) els.saveDemoBtn.textContent = editorEnabled ? "儲存到後台" : "儲存到此瀏覽器";
   if (editorEnabled) {
     loadModelManagement();
     loadAdminDashboard();
@@ -870,7 +871,13 @@ async function loadAdminDashboard() {
 
 function openAuthModal() {
   if (!localApiOnline) {
-    window.alert("請先啟動本機 API，再登入編輯模式。");
+    if (els.authModal) {
+      if (els.authError) els.authError.textContent = "請先啟動本機 API，後台與模型管理才有資料可連線。";
+      els.authModal.classList.add("show");
+      els.authModal.setAttribute("aria-hidden", "false");
+    } else {
+      window.alert("請先啟動本機 API，後台與模型管理才有資料可連線。");
+    }
     return;
   }
   if (!els.authModal) return;
@@ -1644,8 +1651,13 @@ function runPrediction() {
     runApiPrediction(apiBase, currentUploadFile);
     return;
   }
-  els.confidenceValue.textContent = "請先登入編輯模式、上傳影像並連線本機模型";
-  if (els.slicerStatus) els.slicerStatus.textContent = "等待上傳";
+  if (!currentUploadFile) {
+    els.confidenceValue.textContent = "請先上傳一張 X-ray 圖片";
+    if (els.slicerStatus) els.slicerStatus.textContent = "等待上傳影像";
+  } else {
+    els.confidenceValue.textContent = "請先連線本機模型 API";
+    if (els.slicerStatus) els.slicerStatus.textContent = "等待本機 API";
+  }
   appendLog("[api] skipped: upload an image and use API Endpoint for real confidence");
 }
 

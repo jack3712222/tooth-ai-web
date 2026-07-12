@@ -2201,6 +2201,62 @@ th {
   background: #ecfeff;
 }
 
+.mode-guide {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.mode-guide article {
+  padding: 16px;
+  background: #ffffff;
+  border: 1px solid #d8e2ef;
+  border-radius: 8px;
+}
+
+.mode-guide span,
+.visitor-note {
+  color: #667085;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.mode-guide strong {
+  display: block;
+  margin-top: 6px;
+  color: var(--ink);
+  font-size: 17px;
+  line-height: 1.35;
+}
+
+.mode-guide small {
+  display: block;
+  margin-top: 7px;
+  color: #475467;
+  line-height: 1.55;
+}
+
+.visitor-note {
+  margin: 10px 0 0;
+  line-height: 1.55;
+}
+
+.edit-result-panel h4 {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.edit-result-panel h4 span {
+  padding: 3px 7px;
+  color: #075985;
+  background: #ecfeff;
+  border: 1px solid #bae6fd;
+  border-radius: 999px;
+  font-size: 11px;
+}
+
 .auth-modal-card {
   max-width: 430px;
 }
@@ -2523,7 +2579,8 @@ input:disabled {
   .model-grid,
   .simulation-grid,
   .result-summary-grid,
-  .demo-grid {
+  .demo-grid,
+  .mode-guide {
     grid-template-columns: 1fr;
   }
 
@@ -2623,6 +2680,7 @@ input:disabled {
   .launch-panel,
   .dashboard-band,
   .admin-summary-grid,
+  .mode-guide,
   .sample-grid,
   .metrics-row,
   .command-strip,
