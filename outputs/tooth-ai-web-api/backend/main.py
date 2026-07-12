@@ -42,6 +42,14 @@ app.add_middleware(
 )
 
 
+@app.middleware("http")
+async def allow_private_network_access(request, call_next):
+    """Allow the HTTPS dashboard to call a loopback-only local API."""
+    response = await call_next(request)
+    response.headers["Access-Control-Allow-Private-Network"] = "true"
+    return response
+
+
 def db() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
