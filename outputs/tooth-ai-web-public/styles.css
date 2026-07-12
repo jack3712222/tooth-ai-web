@@ -2007,6 +2007,91 @@ th {
   font-size: 20px;
 }
 
+/* Overview is an operational dashboard, not a landing page. */
+.hero {
+  min-height: 390px;
+  grid-template-columns: minmax(0, 1.3fr) minmax(260px, 0.7fr);
+  gap: 18px;
+  padding: 36px 42px;
+}
+
+.hero h1 {
+  max-width: 640px;
+  margin: 8px 0 14px;
+  font-size: 48px;
+  line-height: 1.18;
+}
+
+.hero-copy p:not(.eyebrow) {
+  max-width: 620px;
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.hero .launch-panel {
+  display: none;
+}
+
+.tooth-stage {
+  min-height: 270px;
+}
+
+.tooth {
+  width: 225px;
+  height: 275px;
+}
+
+.floating-result {
+  right: 4px;
+  bottom: 8px;
+  width: 184px;
+  padding: 14px;
+}
+
+.floating-result strong {
+  font-size: 23px;
+}
+
+.status-grid.tab-page.active {
+  display: none !important;
+}
+
+.command-strip {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 12px 14px;
+}
+
+.command-strip > div:nth-child(1),
+.command-strip > div:nth-child(2) {
+  display: none;
+}
+
+.dashboard-band {
+  margin-top: 14px;
+}
+
+@media (max-width: 860px) {
+  .hero {
+    grid-template-columns: 1fr;
+    min-height: auto;
+    padding: 28px;
+  }
+
+  .hero h1 {
+    font-size: 38px;
+  }
+
+  .tooth-stage {
+    display: none;
+  }
+
+  .command-strip {
+    grid-template-columns: 1fr;
+  }
+}
+
 .runtime-stack {
   display: flex;
   flex-wrap: wrap;
