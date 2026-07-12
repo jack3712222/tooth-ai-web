@@ -28,6 +28,8 @@ BACKUP_DIR = DATA_DIR / "backups"
 DB_PATH = DATA_DIR / "records.sqlite3"
 SLICER_URL = os.getenv("SLICER_URL", "http://127.0.0.1:18901")
 MODEL_PATH = Path(os.getenv("MODEL_PATH", r"D:\dental_ai_system\models\current_model.pt"))
+MODEL_DIR = MODEL_PATH.parent
+active_model_path = MODEL_PATH
 ALLOW_MOCK = os.getenv("ALLOW_MOCK", "0") == "1"
 API_TOKEN = os.getenv("API_TOKEN", "")
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "dentex-admin")
@@ -129,6 +131,12 @@ def require_editor(authorization: str | None = Header(default=None)) -> str:
     return str(row["username"])
 
 
+def optional_editor(authorization: str | None = Header(default=None)) -> str | None:
+    if not authorization:
+        return None
+    return require_editor(authorization)
+
+
 class LoginRequest(BaseModel):
     username: str = Field(min_length=1, max_length=80)
     password: str = Field(min_length=8, max_length=256)
@@ -137,6 +145,10 @@ class LoginRequest(BaseModel):
 class RecordUpdate(BaseModel):
     prediction: str = Field(pattern="^(cavity|wisdom_tooth|No Finding)$")
     confidence: float = Field(ge=0, le=1)
+
+
+class ModelSelection(BaseModel):
+    model: str = Field(pattern=r"^[A-Za-z0-9_.-]+\.pt$")
 
 
 def create_backup_if_due() -> None:
@@ -191,20 +203,21 @@ def call_slicer(image_path: Path) -> dict[str, Any]:
         return {"connected": False, "error": str(exc)}
 
 
-@lru_cache(maxsize=1)
-def load_model():
-    if not MODEL_PATH.exists():
-        raise FileNotFoundError(f"model file not found: {MODEL_PATH}")
+@lru_cache(maxsize=4)
+def load_model(model_path: str):
+    path = Path(model_path)
+    if not path.exists():
+        raise FileNotFoundError(f"model file not found: {path}")
     try:
         from ultralytics import YOLO
     except ImportError as exc:
         raise RuntimeError("ultralytics is not installed; run: pip install ultralytics") from exc
-    return YOLO(str(MODEL_PATH))
+    return YOLO(str(path))
 
 
 def yolo_result(image_path: Path) -> tuple[str, float, list[dict[str, Any]], float]:
     start = time.perf_counter()
-    model = load_model()
+    model = load_model(str(active_model_path))
     results = model.predict(str(image_path), conf=0.25, verbose=False)
     inference_ms = round((time.perf_counter() - start) * 1000, 2)
     names = getattr(model, "names", {}) or {}
@@ -244,9 +257,27 @@ def health() -> dict[str, Any]:
     return {
         "status": "ok",
         "mode": "local" if LOCAL_TRUSTED_MODE else "protected",
-        "model_available": MODEL_PATH.exists(),
-        "model_name": MODEL_PATH.name,
+        "model_available": active_model_path.exists(),
+        "model_name": active_model_path.name,
     }
+
+
+@app.get("/models")
+def models(username: str = Depends(require_editor)) -> dict[str, Any]:
+    available = sorted(path.name for path in MODEL_DIR.glob("*.pt") if path.is_file())
+    return {"active": active_model_path.name, "available": available}
+
+
+@app.patch("/models/active")
+def set_active_model(selection: ModelSelection, username: str = Depends(require_editor)) -> dict[str, str]:
+    global active_model_path
+    candidate = (MODEL_DIR / selection.model).resolve()
+    if candidate.parent != MODEL_DIR.resolve() or not candidate.is_file():
+        raise HTTPException(status_code=404, detail="model not found")
+    active_model_path = candidate
+    load_model.cache_clear()
+    log_audit(username, "set_active_model")
+    return {"active": active_model_path.name}
 
 
 @app.post("/auth/login")
@@ -293,8 +324,10 @@ async def predict(
     file: UploadFile = File(...),
     prediction: str | None = Form(default=None),
     confidence: float | None = Form(default=None),
-    username: str = Depends(require_editor),
+    username: str | None = Depends(optional_editor),
 ) -> dict[str, Any]:
+    if not LOCAL_TRUSTED_MODE and username is None:
+        raise HTTPException(status_code=401, detail="editor authentication required")
     filename = file.filename or "image"
     record_id = uuid.uuid4().hex
     content = await file.read()
@@ -323,27 +356,23 @@ async def predict(
         "boxes": boxes,
         "slicer": slicer_result,
     }
-    with db() as conn:
-        conn.execute(
-            """
-            insert into records values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                record["id"],
-                record["created_at"],
-                record["image_name"],
-                record["image_type"],
-                record["image_size"],
-                record["image_path"],
-                record["prediction"],
-                record["confidence"],
-                record["inference_ms"],
-                json.dumps(record["boxes"]),
-                json.dumps(record["slicer"]),
-            ),
-        )
-    create_backup_if_due()
-    log_audit(username, "predict", record_id)
+    if username:
+        with db() as conn:
+            conn.execute(
+                """
+                insert into records values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    record["id"], record["created_at"], record["image_name"], record["image_type"],
+                    record["image_size"], record["image_path"], record["prediction"], record["confidence"],
+                    record["inference_ms"], json.dumps(record["boxes"]), json.dumps(record["slicer"]),
+                ),
+            )
+        create_backup_if_due()
+        log_audit(username, "predict", record_id)
+    else:
+        record["id"] = None
+        image_path.unlink(missing_ok=True)
     public_record = dict(record)
     public_record.pop("image_path", None)
     return public_record
@@ -384,3 +413,23 @@ def backups(username: str = Depends(require_editor)) -> list[dict[str, Any]]:
         {"name": path.name, "created_at": path.stat().st_mtime, "size": path.stat().st_size}
         for path in sorted(BACKUP_DIR.glob("records-*.sqlite3"), key=lambda item: item.stat().st_mtime, reverse=True)
     ]
+
+
+@app.get("/admin/summary")
+def admin_summary(username: str = Depends(require_editor)) -> dict[str, Any]:
+    with db() as conn:
+        record_count = conn.execute("select count(*) from records").fetchone()[0]
+        latest = conn.execute("select created_at from records order by created_at desc limit 1").fetchone()
+    return {
+        "record_count": record_count,
+        "backup_count": len(list(BACKUP_DIR.glob("records-*.sqlite3"))),
+        "latest_record_at": latest[0] if latest else None,
+        "active_model": active_model_path.name,
+    }
+
+
+@app.get("/audit")
+def audit_log(username: str = Depends(require_editor)) -> list[dict[str, Any]]:
+    with db() as conn:
+        rows = conn.execute("select created_at, username, action, record_id from audit_log order by created_at desc limit 50").fetchall()
+    return [dict(row) for row in rows]

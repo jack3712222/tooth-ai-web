@@ -10,7 +10,7 @@
     />
     <meta name="referrer" content="no-referrer" />
     <title>牙齒 AI 檢測平台</title>
-    <link rel="stylesheet" href="./styles.css?v=20260713-overview" />
+    <link rel="stylesheet" href="./styles.css?v=20260713-access" />
   </head>
   <body>
     <header class="sidebar">
@@ -29,6 +29,7 @@
         <a href="#simulation" data-tab="simulation">4. 模擬</a>
         <a href="#analysis" data-tab="analysis">5. 分析</a>
         <a href="#demo" data-tab="demo">Demo</a>
+        <a href="#admin" data-tab="admin" class="editor-only" hidden>後台</a>
       </nav>
       <div class="header-status" aria-label="系統狀態">
         <span id="frontendStatus" class="status-pill online">前端已載入</span>
@@ -326,6 +327,22 @@
               <div><dt>Scheduler</dt><dd>linear / cosine</dd></div>
             </dl>
           </article>
+        </div>
+        <div class="panel model-management editor-only" hidden>
+          <div class="panel-title-row">
+            <div>
+              <p class="eyebrow">Editor Only</p>
+              <h3>模型管理</h3>
+            </div>
+            <span class="tag fixed">編輯模式</span>
+          </div>
+          <div class="model-management-controls">
+            <label>目前模型
+              <select id="activeModelSelect" disabled><option>載入中</option></select>
+            </label>
+            <button id="applyModelBtn" type="button" disabled>套用模型</button>
+          </div>
+          <p id="modelManagementHint" class="notice">登入後可選擇本機 models 資料夾內已註冊的 .pt 模型。</p>
         </div>
         <div class="panel hyper-panel">
           <h3>調整的超參數範圍</h3>
@@ -806,6 +823,28 @@
         </div>
       </section>
 
+      <section id="admin" class="section tab-page editor-only" data-tab-page="admin" hidden>
+        <div class="section-head">
+          <p class="eyebrow">Administration</p>
+          <h2>後台管理</h2>
+        </div>
+        <div class="admin-summary-grid">
+          <article class="panel"><span>已儲存推論</span><strong id="adminRecordCount">--</strong><small>僅編輯模式儲存</small></article>
+          <article class="panel"><span>自動備份</span><strong id="adminBackupCount">--</strong><small>最近 20 份資料庫備份</small></article>
+          <article class="panel"><span>目前模型</span><strong id="adminActiveModel">--</strong><small id="adminLatestRecord">尚無儲存紀錄</small></article>
+        </div>
+        <div class="panel admin-log-panel">
+          <div class="panel-title-row">
+            <div><p class="eyebrow">Audit Log</p><h3>最近管理操作</h3></div>
+            <button id="refreshAdminBtn" type="button">重新整理</button>
+          </div>
+          <table>
+            <thead><tr><th>時間</th><th>帳號</th><th>操作</th><th>項目</th></tr></thead>
+            <tbody id="auditTableBody"><tr><td colspan="4">登入編輯模式後載入。</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
       <div id="modelModal" class="modal-backdrop" aria-hidden="true">
         <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modelModalTitle">
           <button id="closeModelModalBtn" class="modal-close" type="button" aria-label="關閉">×</button>
@@ -860,6 +899,6 @@
     </main>
 
     <script src="./data-records.js?v=20260707-photos"></script>
-    <script src="./app.js?v=20260707-photos"></script>
+    <script src="./app.js?v=20260713-access"></script>
   </body>
 </html>

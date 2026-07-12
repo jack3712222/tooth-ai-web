@@ -251,6 +251,15 @@ const els = {
   manualPredictionInput: document.querySelector("#manualPredictionInput"),
   manualConfidenceInput: document.querySelector("#manualConfidenceInput"),
   applyEditBtn: document.querySelector("#applyEditBtn"),
+  activeModelSelect: document.querySelector("#activeModelSelect"),
+  applyModelBtn: document.querySelector("#applyModelBtn"),
+  modelManagementHint: document.querySelector("#modelManagementHint"),
+  adminRecordCount: document.querySelector("#adminRecordCount"),
+  adminBackupCount: document.querySelector("#adminBackupCount"),
+  adminActiveModel: document.querySelector("#adminActiveModel"),
+  adminLatestRecord: document.querySelector("#adminLatestRecord"),
+  auditTableBody: document.querySelector("#auditTableBody"),
+  refreshAdminBtn: document.querySelector("#refreshAdminBtn"),
 };
 
 const trainingHistory = {
@@ -334,7 +343,7 @@ async function checkSystemStatus() {
     setStatusPill(els.apiStatus, "online", "本機模型：已連線");
     setStatusPill(els.modelStatus, "online", "本機 YOLO：可推論");
     if (els.localInferenceHelp) els.localInferenceHelp.textContent = "本機 API 已連線。上傳 X-ray 後可使用 current_model.pt 推論；影像不會離開這台電腦。";
-    if (els.predictBtn) els.predictBtn.disabled = !currentUploadFile || !editorToken();
+    if (els.predictBtn) els.predictBtn.disabled = !currentUploadFile;
   } catch (error) {
     localApiOnline = false;
     setStatusPill(els.apiStatus, "offline", "本機模型：尚未啟動");
@@ -731,14 +740,15 @@ function setAccessMode(mode) {
   localStorage.setItem(accessModeKey, safeMode);
   document.body.dataset.accessMode = safeMode;
   const editorEnabled = safeMode === "editor";
+  document.querySelectorAll(".editor-only").forEach((element) => {
+    element.hidden = !editorEnabled;
+  });
   [
     els.applyEditBtn,
     els.saveDemoBtn,
     els.clearRecordsBtn,
     els.manualPredictionInput,
     els.manualConfidenceInput,
-    els.imageUpload,
-    els.predictBtn,
   ].forEach((control) => {
     if (control) control.disabled = !editorEnabled;
   });
@@ -750,7 +760,112 @@ function setAccessMode(mode) {
     els.accessModeLabel.classList.toggle("visitor", !editorEnabled);
   }
   if (els.editorModeBtn) els.editorModeBtn.textContent = editorEnabled ? "編輯模式" : "登入編輯";
+  if (editorEnabled) {
+    loadModelManagement();
+    loadAdminDashboard();
+  }
   appendLog(`[access] mode=${safeMode}`);
+}
+
+function formatAdminTime(value) {
+  if (!value) return "尚無紀錄";
+  return new Intl.DateTimeFormat("zh-TW", {
+    timeZone: "Asia/Taipei",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(new Date(Number(value) * 1000));
+}
+
+async function loadModelManagement() {
+  if (!editorToken() || !els.activeModelSelect) return;
+  try {
+    const response = await fetch(`${localApiBase}/models`, { headers: editorHeaders() });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    els.activeModelSelect.replaceChildren();
+    (data.available || []).forEach((model) => {
+      const option = document.createElement("option");
+      option.value = model;
+      option.textContent = model;
+      option.selected = model === data.active;
+      els.activeModelSelect.appendChild(option);
+    });
+    els.activeModelSelect.disabled = !(data.available || []).length;
+    if (els.applyModelBtn) els.applyModelBtn.disabled = !(data.available || []).length;
+    if (els.modelManagementHint) els.modelManagementHint.textContent = `目前使用：${data.active || "未找到模型"}`;
+  } catch (error) {
+    if (els.modelManagementHint) els.modelManagementHint.textContent = "無法讀取模型清單，請確認本機 API 已啟動。";
+    appendLog(`[model] list failed: ${error.message}`);
+  }
+}
+
+async function applyActiveModel() {
+  const model = els.activeModelSelect?.value;
+  if (!model || !editorToken()) return;
+  if (els.applyModelBtn) els.applyModelBtn.disabled = true;
+  try {
+    const response = await fetch(`${localApiBase}/models/active`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...editorHeaders() },
+      body: JSON.stringify({ model }),
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    if (els.modelManagementHint) els.modelManagementHint.textContent = `已套用：${data.active}`;
+    appendLog(`[model] active=${data.active}`);
+    await checkSystemStatus();
+    await loadAdminDashboard();
+  } catch (error) {
+    if (els.modelManagementHint) els.modelManagementHint.textContent = "模型切換失敗，模型檔案需位於本機 models 資料夾。";
+    appendLog(`[model] switch failed: ${error.message}`);
+  } finally {
+    if (els.applyModelBtn) els.applyModelBtn.disabled = false;
+  }
+}
+
+async function loadAdminDashboard() {
+  if (!editorToken()) return;
+  try {
+    const [summaryResponse, auditResponse] = await Promise.all([
+      fetch(`${localApiBase}/admin/summary`, { headers: editorHeaders() }),
+      fetch(`${localApiBase}/audit`, { headers: editorHeaders() }),
+    ]);
+    if (!summaryResponse.ok || !auditResponse.ok) throw new Error("admin request failed");
+    const summary = await summaryResponse.json();
+    const auditRows = await auditResponse.json();
+    if (els.adminRecordCount) els.adminRecordCount.textContent = String(summary.record_count || 0);
+    if (els.adminBackupCount) els.adminBackupCount.textContent = String(summary.backup_count || 0);
+    if (els.adminActiveModel) els.adminActiveModel.textContent = summary.active_model || "--";
+    if (els.adminLatestRecord) els.adminLatestRecord.textContent = `最後儲存：${formatAdminTime(summary.latest_record_at)}`;
+    if (els.auditTableBody) {
+      els.auditTableBody.replaceChildren();
+      if (!auditRows.length) {
+        const row = document.createElement("tr");
+        const cell = document.createElement("td");
+        cell.colSpan = 4;
+        cell.textContent = "尚無管理操作。";
+        row.appendChild(cell);
+        els.auditTableBody.appendChild(row);
+      } else {
+        auditRows.forEach((entry) => {
+          const row = document.createElement("tr");
+          [formatAdminTime(entry.created_at), entry.username, entry.action, entry.record_id || "--"].forEach((value) => {
+            const cell = document.createElement("td");
+            cell.textContent = String(value);
+            row.appendChild(cell);
+          });
+          els.auditTableBody.appendChild(row);
+        });
+      }
+    }
+  } catch (error) {
+    appendLog(`[admin] load failed: ${error.message}`);
+  }
 }
 
 function openAuthModal() {
@@ -1524,7 +1639,7 @@ function setPrediction(label, animated = false) {
 function runPrediction() {
   appendLog(`[demo] input image received, preprocessing label_hint=${selectedDemo}`);
   const apiBase = apiBaseUrl();
-  if (localApiOnline && editorToken() && currentUploadFile) {
+  if (localApiOnline && currentUploadFile) {
     setPrediction(selectedDemo, true);
     runApiPrediction(apiBase, currentUploadFile);
     return;
@@ -1694,7 +1809,7 @@ els.imageUpload.addEventListener("change", (event) => {
     els.medicalViewerImage.onload = renderDetectionBoxes;
   }
   updateImageInfoUi();
-  if (els.predictBtn) els.predictBtn.disabled = !localApiOnline || !editorToken();
+  if (els.predictBtn) els.predictBtn.disabled = !localApiOnline;
   appendLog(`[demo] uploaded file=${file.name}`);
 });
 
@@ -1737,6 +1852,8 @@ els.authModal?.addEventListener("click", (event) => {
 });
 els.openModelModalBtn?.addEventListener("click", openModelModal);
 els.closeModelModalBtn?.addEventListener("click", closeModelModal);
+els.applyModelBtn?.addEventListener("click", applyActiveModel);
+els.refreshAdminBtn?.addEventListener("click", loadAdminDashboard);
 els.archSimpleBtn?.addEventListener("click", () => setArchitectureMode("simple"));
 els.archFullBtn?.addEventListener("click", () => setArchitectureMode("full"));
 els.expandParamBtn?.addEventListener("click", () => setParamGroups(true));
@@ -1795,7 +1912,7 @@ els.clearRecordsBtn?.addEventListener("click", clearDemoRecords);
 });
 
 function showTab(tabName) {
-  const safeTab = tabName || "overview";
+  const safeTab = tabName === "admin" && !editorToken() ? "overview" : (tabName || "overview");
   document.querySelectorAll("[data-tab-page]").forEach((panel) => {
     panel.classList.toggle("active", panel.dataset.tabPage === safeTab);
   });
@@ -1803,6 +1920,7 @@ function showTab(tabName) {
     link.classList.toggle("active", link.dataset.tab === safeTab);
   });
   window.scrollTo({ top: 0, behavior: "smooth" });
+  if (safeTab === "admin") loadAdminDashboard();
 }
 
 document.querySelectorAll("nav a[data-tab]").forEach((link) => {
