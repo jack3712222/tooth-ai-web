@@ -32,7 +32,7 @@
       </nav>
       <div class="header-status" aria-label="系統狀態">
         <span id="frontendStatus" class="status-pill online">前端已載入</span>
-        <span id="apiStatus" class="status-pill checking">API 檢查中</span>
+        <span id="apiStatus" class="status-pill offline">實驗版：推論 API 未部署</span>
       </div>
     </header>
 
@@ -112,11 +112,10 @@
           <strong>72 combos / 720 runs / 全部 10/10</strong>
         </div>
         <div class="runtime-stack">
-          <span id="modelStatus" class="runtime-pill">模型：current_model.pt</span>
-          <span id="slicerBridgeStatus" class="runtime-pill">3D Slicer：未檢查</span>
+          <span id="modelStatus" class="runtime-pill online">實驗版：72 組結果已載入</span>
+          <span id="slicerBridgeStatus" class="runtime-pill offline">3D Slicer：未連接</span>
         </div>
         <div class="strip-actions">
-          <button id="checkSystemBtn">檢查 API</button>
           <button id="jumpDemoBtn">快速 Demo</button>
           <button id="exportReportBtn">匯出結果 JSON</button>
           <button id="visitorModeBtn" type="button">訪客模式</button>
@@ -549,7 +548,7 @@
                 <span>實驗資料</span>
                 <strong id="progressText">72 組結果</strong>
               </div>
-              <button id="resetTrainingBtn" class="icon-btn" title="重新載入結果">↻</button>
+              <button id="resetTrainingBtn" class="icon-btn" title="重新載入 72 組結果">↻</button>
             </div>
             <p class="notice">
               此區接續建模結果，載入 Excel 重新統整後的 72 組超參數平均結果；可查詢每組參數與 mAP、Precision、Recall、F1。
@@ -595,8 +594,8 @@
               <button id="applySimulationControlsBtn" class="apply-controls-btn" type="button">套用排序 / 圖表</button>
             </div>
             <div class="train-actions">
-              <button id="pauseTrainingBtn">依 Combo 編號</button>
-              <button id="fastTrainingBtn">依目前指標排名</button>
+              <button id="pauseTrainingBtn">依組合編號排序</button>
+              <button id="fastTrainingBtn">依選定指標排序</button>
             </div>
             <div class="progress"><div id="progressBar" style="width: 100%"></div></div>
             <div class="metrics-row">
@@ -754,14 +753,11 @@
               <input id="imageUpload" type="file" accept="image/png,image/jpeg,image/webp,image/bmp,image/gif,application/dicom,.dcm" />
               上傳牙科 X-ray 圖片
             </label>
-            <label class="api-field">API Endpoint
-              <input id="apiBaseInput" type="url" value="https://f266ef74df291e.lhr.life" />
-            </label>
             <div class="demo-buttons">
               <button data-demo="蛀牙" class="demo-choice selected">蛀牙</button>
               <button data-demo="阻生智齒" class="demo-choice">阻生智齒</button>
             </div>
-            <button id="predictBtn" class="primary full">執行推論 Demo</button>
+            <p class="notice">實驗版提供影像預覽與人工標註；真實 YOLO 推論會在受保護的 API 部署後啟用。</p>
           </div>
           <div class="panel demo-output">
             <h3>推論結果</h3>
@@ -787,19 +783,19 @@
               </div>
             </div>
             <div class="pipeline">
-              <span class="done">imgsz 1280</span>
-              <span class="done">YOLO forward</span>
-              <span class="done">NMS</span>
-              <span id="pipelineResult">Output</span>
+              <span class="done">影像預覽</span>
+              <span class="done">人工標註</span>
+              <span class="done">本機紀錄</span>
+              <span id="pipelineResult">實驗版</span>
             </div>
             <div class="explain-box">
-              <h4>模型解釋 Grad-CAM 模擬</h4>
+              <h4>標註區域預覽</h4>
               <div class="heatmap">
                 <div class="heat hot"></div>
                 <div class="heat warm"></div>
                 <div class="heat cool"></div>
               </div>
-            <p id="explainText">上傳影像並執行 API 推論後，會顯示模型偵測到的蛀牙或阻生智齒結果。</p>
+            <p id="explainText">此區只呈現人工標註的視覺預覽；尚未連接 API 時不會產生或宣稱模型的信心指數。</p>
             </div>
             <div class="report-box">
               <h4>Demo 報告</h4>
@@ -816,7 +812,7 @@
             <div class="slicer-head">
               <div>
                 <span>3D Slicer 風格閱片畫面</span>
-                <strong id="slicerStatus">待推論</strong>
+                <strong id="slicerStatus">人工標註預覽</strong>
               </div>
               <button id="saveDemoBtn">儲存照片資訊</button>
             </div>
@@ -832,11 +828,11 @@
                 <div class="scan-cross horizontal"></div>
                 <div class="scan-cross vertical"></div>
                 <div id="slicerFindingBox" class="finding-box">
-                  <span id="slicerFindingLabel">等待模型推論</span>
+                  <span id="slicerFindingLabel">選擇標註類別</span>
                 </div>
               </div>
             </div>
-            <p class="slicer-note">此區提供類似 3D Slicer 的閱片介面；正式部署時可由後端 API 回傳 YOLO 偵測框、類別、信心指數與影像資訊。</p>
+            <p class="slicer-note">此區為類 3D Slicer 的閱片與標註預覽，不會假裝已連接 Slicer。正式推論 API 上線後，才會回傳 YOLO 偵測框、類別與信心指數。</p>
           </div>
           <div class="panel image-info-panel">
             <h3>照片與推論資訊</h3>

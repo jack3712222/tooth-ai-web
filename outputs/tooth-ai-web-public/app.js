@@ -284,7 +284,7 @@ function setStatusPill(element, state, text) {
 }
 
 function apiBaseUrl() {
-  return (els.apiBaseInput?.value || "https://f266ef74df291e.lhr.life").trim().replace(/\/+$/, "");
+  return "";
 }
 
 async function fetchJsonWithTimeout(url, timeoutMs = 1800) {
@@ -300,6 +300,10 @@ async function fetchJsonWithTimeout(url, timeoutMs = 1800) {
 }
 
 async function checkSystemStatus() {
+  setStatusPill(els.apiStatus, "offline", "實驗版：推論 API 未部署");
+  setStatusPill(els.modelStatus, "online", "實驗版：72 組結果已載入");
+  setStatusPill(els.slicerBridgeStatus, "offline", "3D Slicer：未連接");
+  return;
   setStatusPill(els.apiStatus, "checking", "API 檢查中");
   setStatusPill(els.modelStatus, "checking", "模型：檢查中");
   setStatusPill(els.slicerBridgeStatus, "checking", "3D Slicer：檢查中");
@@ -1145,6 +1149,17 @@ function setPendingSelection(label) {
   if (!["蛀牙", "阻生智齒"].includes(selectedDemo)) selectedDemo = "蛀牙";
   currentConfidence = 0;
   els.predictionValue.textContent = selectedDemo;
+  els.confidenceValue.textContent = "待人工標註";
+  els.heroPrediction.textContent = selectedDemo;
+  els.heroConfidence.textContent = "待人工標註";
+  if (els.topResult) els.topResult.textContent = selectedDemo;
+  if (els.manualPredictionInput) els.manualPredictionInput.value = selectedDemo;
+  if (els.manualConfidenceInput) els.manualConfidenceInput.value = "0";
+  renderProbabilities([0, 0]);
+  updateImageInfoUi();
+  updateSlicerViewer(selectedDemo, 0, "人工標註預覽");
+  return;
+  els.predictionValue.textContent = selectedDemo;
   els.confidenceValue.textContent = "等待模型推論";
   els.heroPrediction.textContent = selectedDemo;
   els.heroConfidence.textContent = "等待模型推論";
@@ -1432,7 +1447,7 @@ els.imageUpload.addEventListener("change", (event) => {
 
 els.runTrainingBtn?.addEventListener("click", runTraining);
 els.resetTrainingBtn.addEventListener("click", resetTraining);
-els.predictBtn.addEventListener("click", runPrediction);
+els.predictBtn?.addEventListener("click", runPrediction);
 els.pauseTrainingBtn?.addEventListener("click", pauseTraining);
 els.fastTrainingBtn?.addEventListener("click", fastFinishTraining);
 els.comboSelect?.addEventListener("change", () => {

@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: tooth-ai-experimental-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: API_TOKEN
+        generateValue: true
+      - key: ALLOW_MOCK
+        value: "0"

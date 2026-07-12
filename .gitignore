@@ -7,6 +7,11 @@ __pycache__/
 outputs/tooth-ai-web-api/.venv/
 outputs/tooth-ai-web-api/__pycache__/
 outputs/tooth-ai-web-api/backend/__pycache__/
+outputs/tooth-ai-web-api/.env
+outputs/tooth-ai-web-api/data/
+outputs/tooth-ai-web-api/models/
+outputs/tooth-ai-web-public/verification-*.png
+*.pt
 outputs/*.log
 work/
 .agents/
