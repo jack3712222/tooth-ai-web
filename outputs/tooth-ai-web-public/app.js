@@ -151,6 +151,14 @@ const els = {
   checkSystemBtn: document.querySelector("#checkSystemBtn"),
   visitorModeBtn: document.querySelector("#visitorModeBtn"),
   editorModeBtn: document.querySelector("#editorModeBtn"),
+  accessModeLabel: document.querySelector("#accessModeLabel"),
+  authModal: document.querySelector("#authModal"),
+  authForm: document.querySelector("#authForm"),
+  authUsernameInput: document.querySelector("#authUsernameInput"),
+  authPasswordInput: document.querySelector("#authPasswordInput"),
+  authError: document.querySelector("#authError"),
+  closeAuthModalBtn: document.querySelector("#closeAuthModalBtn"),
+  cancelAuthBtn: document.querySelector("#cancelAuthBtn"),
   modelModal: document.querySelector("#modelModal"),
   openModelModalBtn: document.querySelector("#openModelModalBtn"),
   closeModelModalBtn: document.querySelector("#closeModelModalBtn"),
@@ -736,18 +744,39 @@ function setAccessMode(mode) {
   });
   els.visitorModeBtn?.classList.toggle("active", !editorEnabled);
   els.editorModeBtn?.classList.toggle("active", editorEnabled);
+  if (els.accessModeLabel) {
+    els.accessModeLabel.textContent = editorEnabled ? "目前：編輯模式" : "目前：訪客模式";
+    els.accessModeLabel.classList.toggle("editor", editorEnabled);
+    els.accessModeLabel.classList.toggle("visitor", !editorEnabled);
+  }
+  if (els.editorModeBtn) els.editorModeBtn.textContent = editorEnabled ? "編輯模式" : "登入編輯";
   appendLog(`[access] mode=${safeMode}`);
 }
 
-async function requestEditorMode() {
+function openAuthModal() {
   if (!localApiOnline) {
     window.alert("請先啟動本機 API，再登入編輯模式。");
     return;
   }
-  const username = window.prompt("編輯者帳號");
-  if (username === null) return;
-  const password = window.prompt("編輯者密碼");
-  if (password === null) return;
+  if (!els.authModal) return;
+  if (els.authError) els.authError.textContent = "";
+  if (els.authPasswordInput) els.authPasswordInput.value = "";
+  els.authModal.classList.add("show");
+  els.authModal.setAttribute("aria-hidden", "false");
+  els.authUsernameInput?.focus();
+}
+
+function closeAuthModal() {
+  if (!els.authModal) return;
+  els.authModal.classList.remove("show");
+  els.authModal.setAttribute("aria-hidden", "true");
+}
+
+async function submitEditorLogin(event) {
+  event.preventDefault();
+  const username = els.authUsernameInput?.value.trim() || "";
+  const password = els.authPasswordInput?.value || "";
+  if (!username || !password) return;
   try {
     const response = await fetch(`${localApiBase}/auth/login`, {
       method: "POST",
@@ -758,11 +787,12 @@ async function requestEditorMode() {
     const session = await response.json();
     sessionStorage.setItem(editorSessionKey, session.access_token);
     setAccessMode("editor");
+    closeAuthModal();
     appendLog(`[auth] editor login=${session.username}`);
   } catch {
     sessionStorage.removeItem(editorSessionKey);
     setAccessMode("visitor");
-    window.alert("帳號或密碼錯誤，維持訪客模式。");
+    if (els.authError) els.authError.textContent = "帳號或密碼錯誤，請再試一次。";
   }
 }
 
@@ -1698,7 +1728,13 @@ els.visitorModeBtn?.addEventListener("click", () => {
   sessionStorage.removeItem(editorSessionKey);
   setAccessMode("visitor");
 });
-els.editorModeBtn?.addEventListener("click", requestEditorMode);
+els.editorModeBtn?.addEventListener("click", openAuthModal);
+els.authForm?.addEventListener("submit", submitEditorLogin);
+els.closeAuthModalBtn?.addEventListener("click", closeAuthModal);
+els.cancelAuthBtn?.addEventListener("click", closeAuthModal);
+els.authModal?.addEventListener("click", (event) => {
+  if (event.target === els.authModal) closeAuthModal();
+});
 els.openModelModalBtn?.addEventListener("click", openModelModal);
 els.closeModelModalBtn?.addEventListener("click", closeModelModal);
 els.archSimpleBtn?.addEventListener("click", () => setArchitectureMode("simple"));
@@ -1716,6 +1752,7 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
     closeModelModal();
     closeDataImageModal();
+    closeAuthModal();
   }
 });
 els.dataImageFolderInput?.addEventListener("change", loadLocalDatasetImages);

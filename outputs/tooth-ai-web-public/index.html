@@ -116,11 +116,12 @@
           <span id="slicerBridgeStatus" class="runtime-pill online">2D 檢視器：已就緒</span>
         </div>
         <div class="strip-actions">
+          <span id="accessModeLabel" class="access-mode-label visitor">目前：訪客模式</span>
           <button id="checkSystemBtn" type="button">連線本機模型</button>
           <button id="jumpDemoBtn">快速 Demo</button>
           <button id="exportReportBtn">匯出結果 JSON</button>
           <button id="visitorModeBtn" type="button">訪客模式</button>
-          <button id="editorModeBtn" type="button">編輯模式</button>
+          <button id="editorModeBtn" type="button">登入編輯</button>
         </div>
       </section>
 
@@ -821,6 +822,28 @@
             <div><span>Best Combo</span><strong>60</strong></div>
           </div>
           <p class="modal-note">此彈窗只列出展示與推論需要的模型資訊，不顯示本機路徑或內部轉檔流程。</p>
+        </div>
+      </div>
+
+      <div id="authModal" class="modal-backdrop" aria-hidden="true">
+        <div class="modal-card auth-modal-card" role="dialog" aria-modal="true" aria-labelledby="authModalTitle">
+          <button id="closeAuthModalBtn" class="modal-close" type="button" aria-label="關閉">×</button>
+          <p class="eyebrow">Editor Access</p>
+          <h2 id="authModalTitle">登入編輯模式</h2>
+          <p class="modal-note">編輯模式可使用本機模型推論、修改結果與管理本機紀錄。</p>
+          <form id="authForm" class="auth-form">
+            <label>帳號
+              <input id="authUsernameInput" name="username" type="text" autocomplete="username" required />
+            </label>
+            <label>密碼
+              <input id="authPasswordInput" name="password" type="password" autocomplete="current-password" required />
+            </label>
+            <p id="authError" class="auth-error" role="alert"></p>
+            <div class="auth-actions">
+              <button id="cancelAuthBtn" type="button">取消</button>
+              <button type="submit" class="primary">登入</button>
+            </div>
+          </form>
         </div>
       </div>
 

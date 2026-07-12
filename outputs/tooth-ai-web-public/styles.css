@@ -2035,6 +2035,70 @@ th {
   border-color: #fde68a;
 }
 
+.access-mode-label {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid #d8e2ef;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.access-mode-label.visitor {
+  color: #475467;
+  background: #f8fafc;
+}
+
+.access-mode-label.editor {
+  color: #075985;
+  border-color: #7dd3fc;
+  background: #ecfeff;
+}
+
+.auth-modal-card {
+  max-width: 430px;
+}
+
+.auth-form {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.auth-form label {
+  display: grid;
+  gap: 7px;
+  color: #344054;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.auth-form input {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 11px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font: inherit;
+}
+
+.auth-error {
+  min-height: 18px;
+  margin: 0;
+  color: #b42318;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.auth-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+}
+
 .strip-actions,
 .train-actions {
   display: flex;
