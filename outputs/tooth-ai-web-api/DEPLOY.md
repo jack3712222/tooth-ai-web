@@ -15,6 +15,19 @@ $env:CORS_ORIGINS="http://127.0.0.1:8765"
 python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
 ```
 
+## 本機推論模式（目前網站使用）
+
+本機模式不需要把模型上傳雲端。請維持 `--host 127.0.0.1`，使 API 只能由同一台電腦存取：
+
+```powershell
+$env:MODEL_PATH="D:\dental_ai_system\models\current_model.pt"
+$env:LOCAL_TRUSTED_MODE="1"
+$env:CORS_ORIGINS="https://astounding-cascaron-273497.netlify.app,http://127.0.0.1:8765"
+python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
+```
+
+公開網站會連到同一台電腦的 `http://127.0.0.1:8000`。其他人可瀏覽網站，但無法使用你的本機模型；這是預期的安全行為。
+
 ## 安全規則
 
 - `/health` 可公開檢查服務存活。

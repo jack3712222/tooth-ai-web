@@ -32,7 +32,7 @@
       </nav>
       <div class="header-status" aria-label="系統狀態">
         <span id="frontendStatus" class="status-pill online">前端已載入</span>
-        <span id="apiStatus" class="status-pill offline">實驗版：推論 API 未部署</span>
+        <span id="apiStatus" class="status-pill checking">本機模型：檢查中</span>
       </div>
     </header>
 
@@ -116,6 +116,7 @@
           <span id="slicerBridgeStatus" class="runtime-pill offline">3D Slicer：未連接</span>
         </div>
         <div class="strip-actions">
+          <button id="checkSystemBtn" type="button">連線本機模型</button>
           <button id="jumpDemoBtn">快速 Demo</button>
           <button id="exportReportBtn">匯出結果 JSON</button>
           <button id="visitorModeBtn" type="button">訪客模式</button>
@@ -685,7 +686,7 @@
       <section id="demo" class="section tab-page" data-tab-page="demo">
         <div class="section-head">
           <p class="eyebrow">Live Demo</p>
-          <h2>DEMO：DENTEX X-ray 模擬偵測</h2>
+          <h2>DEMO：DENTEX X-ray 本機模型推論</h2>
         </div>
         <div class="demo-grid">
           <div class="panel demo-input">
@@ -702,7 +703,8 @@
               <button data-demo="蛀牙" class="demo-choice selected">蛀牙</button>
               <button data-demo="阻生智齒" class="demo-choice">阻生智齒</button>
             </div>
-            <p class="notice">實驗版提供影像預覽與人工標註；真實 YOLO 推論會在受保護的 API 部署後啟用。</p>
+            <button id="predictBtn" class="primary full" type="button" disabled>使用本機模型推論</button>
+            <p id="localInferenceHelp" class="notice">請先在本機啟動 API，再按「連線本機模型」。模型與影像不會上傳雲端。</p>
           </div>
           <div class="panel demo-output">
             <h3>推論結果</h3>

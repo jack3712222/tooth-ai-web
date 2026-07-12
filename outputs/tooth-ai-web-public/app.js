@@ -12,6 +12,8 @@ let currentImageInfo = {
 };
 let lastInferenceMs = "--";
 let currentConfidence = 0;
+let localApiOnline = false;
+const localApiBase = "http://127.0.0.1:8000";
 const demoRecordKey = "toothAiDemoRecords";
 const accessModeKey = "toothAiAccessMode";
 const editorPassword = "dentex2026";
@@ -178,6 +180,7 @@ const els = {
   predictBtn: document.querySelector("#predictBtn"),
   imageUpload: document.querySelector("#imageUpload"),
   apiBaseInput: document.querySelector("#apiBaseInput"),
+  localInferenceHelp: document.querySelector("#localInferenceHelp"),
   previewBox: document.querySelector("#previewBox"),
   previewLabel: document.querySelector("#previewLabel"),
   pipelineResult: document.querySelector("#pipelineResult"),
@@ -284,7 +287,7 @@ function setStatusPill(element, state, text) {
 }
 
 function apiBaseUrl() {
-  return "";
+  return localApiBase;
 }
 
 async function fetchJsonWithTimeout(url, timeoutMs = 1800) {
@@ -300,9 +303,30 @@ async function fetchJsonWithTimeout(url, timeoutMs = 1800) {
 }
 
 async function checkSystemStatus() {
-  setStatusPill(els.apiStatus, "offline", "實驗版：推論 API 未部署");
-  setStatusPill(els.modelStatus, "online", "實驗版：72 組結果已載入");
-  setStatusPill(els.slicerBridgeStatus, "offline", "3D Slicer：未連接");
+  setStatusPill(els.apiStatus, "checking", "本機模型：檢查中");
+  setStatusPill(els.modelStatus, "checking", "本機 YOLO：檢查中");
+  if (els.predictBtn) els.predictBtn.disabled = true;
+  try {
+    await fetchJsonWithTimeout(`${localApiBase}/health`);
+    localApiOnline = true;
+    setStatusPill(els.apiStatus, "online", "本機模型：已連線");
+    setStatusPill(els.modelStatus, "online", "本機 YOLO：可推論");
+    if (els.localInferenceHelp) els.localInferenceHelp.textContent = "本機 API 已連線。上傳 X-ray 後可使用 current_model.pt 推論；影像不會離開這台電腦。";
+    if (els.predictBtn) els.predictBtn.disabled = !currentUploadFile;
+  } catch (error) {
+    localApiOnline = false;
+    setStatusPill(els.apiStatus, "offline", "本機模型：尚未啟動");
+    setStatusPill(els.modelStatus, "offline", "本機 YOLO：等待 API");
+    setStatusPill(els.slicerBridgeStatus, "offline", "3D Slicer：未連接");
+    if (els.localInferenceHelp) els.localInferenceHelp.textContent = "尚未偵測到本機 API。請先依本機推論說明啟動 http://127.0.0.1:8000。";
+    return;
+  }
+  try {
+    const slicer = await fetchJsonWithTimeout(`${localApiBase}/slicer/status`, 1500);
+    setStatusPill(els.slicerBridgeStatus, slicer.connected ? "online" : "offline", slicer.connected ? "3D Slicer：已連接" : "3D Slicer：未連接");
+  } catch {
+    setStatusPill(els.slicerBridgeStatus, "offline", "3D Slicer：未連接");
+  }
   return;
   setStatusPill(els.apiStatus, "checking", "API 檢查中");
   setStatusPill(els.modelStatus, "checking", "模型：檢查中");
@@ -1412,13 +1436,13 @@ function setPrediction(label, animated = false) {
 
 function runPrediction() {
   appendLog(`[demo] input image received, preprocessing label_hint=${selectedDemo}`);
-  const apiBase = els.apiBaseInput?.value?.trim();
-  if (apiBase && currentUploadFile) {
+  const apiBase = apiBaseUrl();
+  if (localApiOnline && currentUploadFile) {
     setPrediction(selectedDemo, true);
     runApiPrediction(apiBase, currentUploadFile);
     return;
   }
-  els.confidenceValue.textContent = "請先上傳影像並確認 API Endpoint";
+  els.confidenceValue.textContent = "請先上傳影像並連線本機模型";
   if (els.slicerStatus) els.slicerStatus.textContent = "等待上傳";
   appendLog("[api] skipped: upload an image and use API Endpoint for real confidence");
 }
@@ -1577,6 +1601,7 @@ els.imageUpload.addEventListener("change", (event) => {
       : "";
   }
   updateImageInfoUi();
+  if (els.predictBtn) els.predictBtn.disabled = !localApiOnline;
   appendLog(`[demo] uploaded file=${file.name}`);
 });
 

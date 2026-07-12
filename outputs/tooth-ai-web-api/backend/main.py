@@ -24,6 +24,7 @@ SLICER_URL = os.getenv("SLICER_URL", "http://127.0.0.1:18901")
 MODEL_PATH = Path(os.getenv("MODEL_PATH", r"D:\dental_ai_system\models\current_model.pt"))
 ALLOW_MOCK = os.getenv("ALLOW_MOCK", "0") == "1"
 API_TOKEN = os.getenv("API_TOKEN", "")
+LOCAL_TRUSTED_MODE = os.getenv("LOCAL_TRUSTED_MODE", "0") == "1"
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(8 * 1024 * 1024)))
 BACKUP_INTERVAL_SECONDS = int(os.getenv("BACKUP_INTERVAL_SECONDS", "300"))
 last_backup_at = 0.0
@@ -34,9 +35,9 @@ BACKUP_DIR.mkdir(parents=True, exist_ok=True)
 app = FastAPI(title="Tooth AI API", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=os.getenv("CORS_ORIGINS", "http://127.0.0.1:8765,http://localhost:8765").split(","),
+    allow_origins=os.getenv("CORS_ORIGINS", "http://127.0.0.1:8765,http://localhost:8765,https://astounding-cascaron-273497.netlify.app").split(","),
     allow_credentials=False,
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "PATCH"],
     allow_headers=["*"],
 )
 
@@ -66,6 +67,8 @@ def db() -> sqlite3.Connection:
 
 def require_api_token(x_api_key: str | None = Header(default=None)) -> None:
     """Protect image records and inference from public access."""
+    if LOCAL_TRUSTED_MODE:
+        return
     if not API_TOKEN:
         raise HTTPException(status_code=503, detail="API_TOKEN is not configured")
     if not x_api_key or not hmac.compare_digest(x_api_key, API_TOKEN):
@@ -155,8 +158,13 @@ def mock_yolo_result(prediction: str | None, confidence: float | None) -> tuple[
 
 
 @app.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "ok"}
+def health() -> dict[str, Any]:
+    return {
+        "status": "ok",
+        "mode": "local" if LOCAL_TRUSTED_MODE else "protected",
+        "model_available": MODEL_PATH.exists(),
+        "model_name": MODEL_PATH.name,
+    }
 
 
 @app.get("/slicer/status", dependencies=[Depends(require_api_token)])
