@@ -24,6 +24,7 @@ body {
   color: var(--ink);
   background: var(--bg);
   font-family: "Segoe UI", "Noto Sans TC", Arial, sans-serif;
+  overflow-x: hidden;
 }
 
 button,
@@ -2258,6 +2259,7 @@ th {
   margin: 8px 0 14px;
   font-size: 48px;
   line-height: 1.18;
+  overflow-wrap: anywhere;
 }
 
 .hero-copy p:not(.eyebrow) {
@@ -2835,8 +2837,10 @@ input:disabled {
     padding: 28px 18px;
   }
 
-  h1 {
-    font-size: 38px;
+  .hero h1 {
+    max-width: 100%;
+    font-size: 34px;
+    line-height: 1.24;
   }
 
   .tooth-stage {

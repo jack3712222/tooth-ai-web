@@ -15,7 +15,6 @@ let currentConfidence = 0;
 let localApiOnline = false;
 const localApiBase = "http://127.0.0.1:8000";
 let currentPredictionBoxes = [];
-let lastApiRecordId = null;
 const demoRecordKey = "toothAiDemoRecords";
 const accessModeKey = "toothAiAccessMode";
 const editorSessionKey = "toothAiEditorSession";
@@ -25,6 +24,7 @@ const allowedOptimizers = new Set(["AdamW"]);
 const allowedLearningRates = new Set(["0.001", "0.01", "0.0001"]);
 const allowedBatchSizes = new Set(["8", "4"]);
 const allowedImageTypes = new Set(["image/png", "image/jpeg", "image/webp", "image/bmp"]);
+const allowedImageExtensions = new Set(["png", "jpg", "jpeg", "webp", "bmp"]);
 const maxUploadBytes = 8 * 1024 * 1024;
 const comboResultCsv = `1,7.5,0.001,0.001,0.9,linear,10,0.7171,0.487,0.7327,0.7058,0.7188,0.4508,34.94,0.5486,0.8856
 2,7.5,0.001,0.001,0.9,cosine,10,0.7089,0.4835,0.7417,0.6982,0.7191,0.4501,35.94,0.538,0.8797
@@ -369,7 +369,8 @@ async function checkSystemStatus() {
   setStatusPill(els.modelStatus, "checking", "本機 YOLO：檢查中");
   if (els.predictBtn) els.predictBtn.disabled = true;
   try {
-    await fetchJsonWithTimeout(`${localApiBase}/health`);
+    const health = await fetchJsonWithTimeout(`${localApiBase}/health`);
+    if (!health.model_available) throw new Error("model file is unavailable");
     localApiOnline = true;
     setStatusPill(els.apiStatus, "online", "本機模型：已連線");
     setStatusPill(els.modelStatus, "online", "本機 YOLO：可推論");
@@ -384,35 +385,6 @@ async function checkSystemStatus() {
     return;
   }
   setStatusPill(els.slicerBridgeStatus, "online", "2D 檢視器：已就緒");
-  return;
-  setStatusPill(els.apiStatus, "checking", "API 檢查中");
-  setStatusPill(els.modelStatus, "checking", "模型：檢查中");
-  setStatusPill(els.slicerBridgeStatus, "checking", "3D Slicer：檢查中");
-  const base = apiBaseUrl();
-
-  try {
-    await fetchJsonWithTimeout(`${base}/health`);
-    setStatusPill(els.apiStatus, "online", "API 已連線");
-    setStatusPill(els.modelStatus, "online", "模型：API 可呼叫");
-  } catch (error) {
-    setStatusPill(els.apiStatus, "offline", "API 未連線");
-    setStatusPill(els.modelStatus, "offline", "模型：等待 API");
-    setStatusPill(els.slicerBridgeStatus, "offline", "3D Slicer：等待 API");
-    appendLog(`[status] API health check failed: ${error.message}`);
-    return;
-  }
-
-  try {
-    const slicer = await fetchJsonWithTimeout(`${base}/slicer/status`, 1500);
-    setStatusPill(
-      els.slicerBridgeStatus,
-      slicer.connected ? "online" : "offline",
-      slicer.connected ? "3D Slicer：已連線" : "3D Slicer：未連線",
-    );
-  } catch (error) {
-    setStatusPill(els.slicerBridgeStatus, "offline", "3D Slicer：未連線");
-    appendLog(`[status] Slicer status check failed: ${error.message}`);
-  }
 }
 
 function openModelModal() {
@@ -816,12 +788,6 @@ function formatAdminTime(value) {
 
 function apiPredictionToLabel(value) {
   return normalizePredictionLabel(value);
-}
-
-function labelToApiPrediction(value) {
-  if (value === "阻生智齒") return "wisdom_tooth";
-  if (value === "未偵測到目標") return "No Finding";
-  return "cavity";
 }
 
 function formatConfidenceValue(value) {
@@ -2146,10 +2112,12 @@ async function runApiPrediction(apiBase, file) {
       headers: editorHeaders(),
       body: form,
     });
-    if (!response.ok) throw new Error(`API ${response.status}`);
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload.detail || `API ${response.status}`);
+    }
     const result = await response.json();
     selectedDemo = normalizePredictionLabel(result.prediction || selectedDemo);
-    lastApiRecordId = result.id || null;
     currentConfidence = clampConfidence((Number(result.confidence) || 0) * 100);
     currentPredictionBoxes = Array.isArray(result.boxes) ? result.boxes : [];
     renderDetectionBoxes();
@@ -2160,7 +2128,8 @@ async function runApiPrediction(apiBase, file) {
     applyResultToUi(selectedDemo, currentConfidence, result.slicer?.connected ? "Slicer 已連線" : "API 已完成");
     appendLog(`[api] /predict ok record=${result.id || "none"} slicer=${result.slicer?.connected ? "connected" : "offline"}`);
   } catch (error) {
-    els.confidenceValue.textContent = "API 推論失敗";
+    const needsLogin = String(error.message).includes("editor authentication required");
+    els.confidenceValue.textContent = needsLogin ? "此 API 需要登入編輯模式後才可推論" : "API 推論失敗";
     if (els.slicerStatus) els.slicerStatus.textContent = "API 失敗";
     appendLog(`[api] /predict failed: ${error.message}`);
   }
@@ -2240,8 +2209,9 @@ document.querySelectorAll(".sample").forEach((button) => {
 els.imageUpload.addEventListener("change", (event) => {
   const file = event.target.files[0];
   if (!file) return;
-  const isDicomFile = file.name.toLowerCase().endsWith(".dcm");
-  if (!allowedImageTypes.has(file.type) && !isDicomFile) {
+  const extension = file.name.split(".").pop()?.toLowerCase() || "";
+  const isSupportedImage = allowedImageTypes.has(file.type) || (!file.type && allowedImageExtensions.has(extension));
+  if (!isSupportedImage) {
     appendLog(`[security] rejected upload type=${file.type || "unknown"} file=${file.name}`);
     currentUploadFile = null;
     event.target.value = "";
@@ -2265,13 +2235,13 @@ els.imageUpload.addEventListener("change", (event) => {
   currentPreviewUrl = url;
   currentImageInfo = {
     name: file.name,
-    type: file.type || (isDicomFile ? "application/dicom" : "unknown"),
+    type: file.type || `image/${extension}`,
     size: formatBytes(file.size),
   };
   const label = document.createElement("span");
   label.id = "previewLabel";
   label.textContent = `Uploaded: ${file.name}`;
-  if (file.type.startsWith("image/")) {
+  if (isSupportedImage) {
     const image = document.createElement("img");
     image.src = url;
     image.alt = "uploaded dental image";
@@ -2282,7 +2252,7 @@ els.imageUpload.addEventListener("change", (event) => {
     els.previewBox.replaceChildren(placeholder, label);
   }
   if (els.medicalViewerImage && els.medicalViewerPlaceholder && els.medicalImageStage) {
-    const isImageFile = file.type.startsWith("image/");
+    const isImageFile = isSupportedImage;
     els.medicalViewerPlaceholder.hidden = isImageFile;
     els.medicalImageStage.hidden = !isImageFile;
     els.medicalViewerImage.src = isImageFile ? url : "";

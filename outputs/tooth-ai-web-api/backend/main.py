@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 import requests
-from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -32,7 +32,6 @@ MODEL_PATH = Path(os.getenv("MODEL_PATH", r"D:\dental_ai_system\models\current_m
 MODEL_DIR = MODEL_PATH.parent
 active_model_path = MODEL_PATH
 ALLOW_MOCK = os.getenv("ALLOW_MOCK", "0") == "1"
-API_TOKEN = os.getenv("API_TOKEN", "")
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "dentex-admin")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
 LOCAL_TRUSTED_MODE = os.getenv("LOCAL_TRUSTED_MODE", "0") == "1"
@@ -41,6 +40,9 @@ MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(8 * 1024 * 1024)))
 BACKUP_INTERVAL_SECONDS = int(os.getenv("BACKUP_INTERVAL_SECONDS", "300"))
 SESSION_TTL_SECONDS = int(os.getenv("SESSION_TTL_SECONDS", str(8 * 60 * 60)))
 last_backup_at = 0.0
+login_attempts: dict[str, list[float]] = {}
+LOGIN_WINDOW_SECONDS = 5 * 60
+MAX_LOGIN_ATTEMPTS = 8
 
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 BACKUP_DIR.mkdir(parents=True, exist_ok=True)
@@ -50,7 +52,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=os.getenv(
         "CORS_ORIGINS",
-        "http://127.0.0.1:8765,http://localhost:8765,https://astounding-cascaron-273497.netlify.app,https://jack3712222.github.io",
+        "http://127.0.0.1:8765,http://localhost:8765,https://jack3712222.github.io",
     ).split(","),
     allow_credentials=False,
     allow_methods=["GET", "POST", "PATCH", "DELETE"],
@@ -70,8 +72,10 @@ async def allow_private_network_access(request, call_next):
 
 
 def db() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=10)
     conn.row_factory = sqlite3.Row
+    conn.execute("pragma journal_mode = WAL")
+    conn.execute("pragma busy_timeout = 10000")
     conn.execute(
         """
         create table if not exists records (
@@ -134,6 +138,17 @@ def db() -> sqlite3.Connection:
 def hash_token(token: str) -> str:
     import hashlib
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def login_allowed(client_id: str) -> bool:
+    now = time.time()
+    attempts = [stamp for stamp in login_attempts.get(client_id, []) if now - stamp < LOGIN_WINDOW_SECONDS]
+    login_attempts[client_id] = attempts
+    return len(attempts) < MAX_LOGIN_ATTEMPTS
+
+
+def record_failed_login(client_id: str) -> None:
+    login_attempts.setdefault(client_id, []).append(time.time())
 
 
 def log_audit(username: str, action: str, record_id: str | None = None) -> None:
@@ -336,11 +351,16 @@ def set_active_model(selection: ModelSelection, username: str = Depends(require_
 
 
 @app.post("/auth/login")
-def login(credentials: LoginRequest) -> dict[str, Any]:
+def login(credentials: LoginRequest, request: Request) -> dict[str, Any]:
     if not ADMIN_PASSWORD:
         raise HTTPException(status_code=503, detail="ADMIN_PASSWORD is not configured")
+    client_id = request.client.host if request.client else "unknown"
+    if not login_allowed(client_id):
+        raise HTTPException(status_code=429, detail="too many login attempts; try again later")
     if not hmac.compare_digest(credentials.username, ADMIN_USERNAME) or not hmac.compare_digest(credentials.password, ADMIN_PASSWORD):
+        record_failed_login(client_id)
         raise HTTPException(status_code=401, detail="invalid username or password")
+    login_attempts.pop(client_id, None)
     token = secrets.token_urlsafe(32)
     expires_at = time.time() + SESSION_TTL_SECONDS
     with db() as conn:
@@ -388,12 +408,12 @@ async def predict(
     content = await file.read()
     suffix, image_type = validated_image(content)
     image_path = UPLOAD_DIR / f"{record_id}{suffix}"
-    image_path.write_bytes(content)
-
     try:
+        image_path.write_bytes(content)
         label, conf, boxes, inference_ms = yolo_result(image_path)
     except Exception as exc:
         if not ALLOW_MOCK:
+            image_path.unlink(missing_ok=True)
             raise HTTPException(status_code=503, detail=str(exc)) from exc
         label, conf, boxes, inference_ms = mock_yolo_result(prediction, confidence)
     slicer_result = call_slicer(image_path) if ENABLE_SLICER_BRIDGE else {"connected": False, "status": "disabled"}
@@ -455,13 +475,13 @@ def record(record_id: str, username: str = Depends(require_editor)) -> dict[str,
 @app.get("/records/{record_id}/image")
 def record_image(record_id: str, username: str = Depends(require_editor)) -> FileResponse:
     with db() as conn:
-        row = conn.execute("select image_name, image_path from records where id = ?", (record_id,)).fetchone()
+        row = conn.execute("select image_name, image_type, image_path from records where id = ?", (record_id,)).fetchone()
     if row is None:
         raise HTTPException(status_code=404, detail="record not found")
     image_path = Path(str(row["image_path"])).resolve()
     if not image_path.is_file() or image_path.parent != UPLOAD_DIR.resolve():
         raise HTTPException(status_code=404, detail="record image not found")
-    return FileResponse(image_path, filename=str(row["image_name"]), media_type="application/octet-stream")
+    return FileResponse(image_path, filename=str(row["image_name"]), media_type=str(row["image_type"]))
 
 
 @app.patch("/records/{record_id}")
