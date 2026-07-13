@@ -154,6 +154,27 @@ class ModelSelection(BaseModel):
     model: str = Field(pattern=r"^[A-Za-z0-9_.-]+\.pt$")
 
 
+def normalized_detection_class(value: Any) -> str:
+    normalized = str(value or "").strip().lower().replace(" ", "_").replace("-", "_")
+    if normalized in {"wisdom_tooth", "impacted_wisdom_tooth", "wisdom", "阻生智齒", "智齒阻生", "阻升智齒"}:
+        return "wisdom_tooth"
+    return "cavity"
+
+
+def findings_from_boxes(boxes: list[dict[str, Any]]) -> dict[str, Any]:
+    findings = {
+        "cavity": {"label": "蛀牙", "count": 0, "max_confidence": 0.0},
+        "wisdom_tooth": {"label": "阻生智齒", "count": 0, "max_confidence": 0.0},
+    }
+    for box in boxes:
+        key = normalized_detection_class(box.get("class") or box.get("label") or box.get("name") or box.get("class_name"))
+        confidence = float(box.get("confidence") or 0)
+        findings[key]["count"] += 1
+        findings[key]["max_confidence"] = max(float(findings[key]["max_confidence"]), confidence)
+    total = int(findings["cavity"]["count"]) + int(findings["wisdom_tooth"]["count"])
+    return {"total": total, "classes": findings}
+
+
 def create_backup_if_due() -> None:
     global last_backup_at
     now = time.time()
@@ -173,6 +194,7 @@ def row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
     item.pop("image_path", None)
     item["boxes"] = json.loads(item.pop("boxes_json"))
     item["slicer"] = json.loads(item.pop("slicer_json"))
+    item["findings"] = findings_from_boxes(item["boxes"])
     return item
 
 

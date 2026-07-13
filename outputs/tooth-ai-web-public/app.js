@@ -805,6 +805,51 @@ function formatConfidenceValue(value) {
   return `${Math.round(numeric * 1000) / 10}%`;
 }
 
+function adminFindingsFromRecord(record) {
+  const fallback = {
+    cavity: { label: "蛀牙", count: 0, maxConfidence: 0 },
+    wisdom_tooth: { label: "阻生智齒", count: 0, maxConfidence: 0 },
+  };
+  const classes = record.findings?.classes;
+  if (classes) {
+    return {
+      cavity: {
+        label: "蛀牙",
+        count: Number(classes.cavity?.count || 0),
+        maxConfidence: Number(classes.cavity?.max_confidence || classes.cavity?.maxConfidence || 0),
+      },
+      wisdom_tooth: {
+        label: "阻生智齒",
+        count: Number(classes.wisdom_tooth?.count || 0),
+        maxConfidence: Number(classes.wisdom_tooth?.max_confidence || classes.wisdom_tooth?.maxConfidence || 0),
+      },
+    };
+  }
+  (Array.isArray(record.boxes) ? record.boxes : []).forEach((box) => {
+    const key = normalizeDetectionClass(box.class ?? box.label ?? box.name ?? box.class_name);
+    fallback[key].count += 1;
+    fallback[key].maxConfidence = Math.max(fallback[key].maxConfidence, Number(box.confidence) || 0);
+  });
+  return fallback;
+}
+
+function adminDiseaseSummary(record) {
+  const findings = adminFindingsFromRecord(record);
+  const parts = Object.values(findings)
+    .filter((item) => item.count > 0)
+    .map((item) => `${item.label} ${item.count} 個`);
+  return parts.length ? parts.join("，") : "未偵測到蛀牙或阻生智齒";
+}
+
+function adminBoxSummary(record) {
+  const findings = adminFindingsFromRecord(record);
+  return Object.values(findings).map((item) => ({
+    label: item.label,
+    text: item.count > 0 ? `${item.count} 框，最高 ${formatConfidenceValue(item.maxConfidence)}` : "0 框",
+    active: item.count > 0,
+  }));
+}
+
 async function loadModelManagement() {
   if (!editorToken()) return;
   try {
@@ -849,57 +894,45 @@ function renderAdminRecords(records) {
     const row = document.createElement("tr");
     row.dataset.recordId = record.id;
 
-    [formatAdminTime(record.created_at), record.image_name || "--"].forEach((value) => {
-      const cell = document.createElement("td");
-      cell.textContent = String(value);
-      row.appendChild(cell);
-    });
+    const timeCell = document.createElement("td");
+    timeCell.textContent = formatAdminTime(record.created_at);
+    row.appendChild(timeCell);
 
-    const predictionCell = document.createElement("td");
-    const predictionSelect = document.createElement("select");
-    predictionSelect.className = "admin-record-prediction";
-    [
-      ["cavity", "蛀牙"],
-      ["wisdom_tooth", "阻生智齒"],
-      ["No Finding", "未偵測到目標"],
-    ].forEach(([value, label]) => {
-      const option = document.createElement("option");
-      option.value = value;
-      option.textContent = label;
-      option.selected = value === record.prediction;
-      predictionSelect.appendChild(option);
-    });
-    predictionCell.appendChild(predictionSelect);
-    row.appendChild(predictionCell);
+    const imageCell = document.createElement("td");
+    const imageName = document.createElement("strong");
+    imageName.textContent = record.image_name || "--";
+    const imageFolder = document.createElement("small");
+    imageFolder.textContent = `影像資料夾：${record.id}`;
+    imageCell.append(imageName, imageFolder);
+    row.appendChild(imageCell);
 
-    const confidenceCell = document.createElement("td");
-    const confidenceInput = document.createElement("input");
-    confidenceInput.className = "admin-record-confidence";
-    confidenceInput.type = "number";
-    confidenceInput.min = "0";
-    confidenceInput.max = "100";
-    confidenceInput.step = "0.1";
-    confidenceInput.value = String(Math.round(Number(record.confidence || 0) * 1000) / 10);
-    confidenceInput.setAttribute("aria-label", "Confidence percent");
-    confidenceCell.appendChild(confidenceInput);
-    row.appendChild(confidenceCell);
+    const diseaseCell = document.createElement("td");
+    diseaseCell.textContent = adminDiseaseSummary(record);
+    row.appendChild(diseaseCell);
+
+    const boxesCell = document.createElement("td");
+    const boxList = document.createElement("div");
+    boxList.className = "admin-finding-list";
+    adminBoxSummary(record).forEach((item) => {
+      const chip = document.createElement("span");
+      chip.className = `finding-chip${item.active ? " active" : ""}`;
+      chip.textContent = `${item.label}：${item.text}`;
+      boxList.appendChild(chip);
+    });
+    boxesCell.appendChild(boxList);
+    row.appendChild(boxesCell);
 
     const inferenceCell = document.createElement("td");
     inferenceCell.textContent = `${Math.round(Number(record.inference_ms || 0))} ms`;
     row.appendChild(inferenceCell);
 
     const actionCell = document.createElement("td");
-    const saveButton = document.createElement("button");
-    saveButton.type = "button";
-    saveButton.className = "small-action";
-    saveButton.dataset.adminRecordAction = "save";
-    saveButton.textContent = "儲存";
     const deleteButton = document.createElement("button");
     deleteButton.type = "button";
     deleteButton.className = "small-action danger";
     deleteButton.dataset.adminRecordAction = "delete";
     deleteButton.textContent = "刪除";
-    actionCell.append(saveButton, deleteButton);
+    actionCell.append(deleteButton);
     row.appendChild(actionCell);
 
     els.adminRecordTableBody.appendChild(row);
@@ -926,21 +959,6 @@ async function loadAdminRecords() {
   }
 }
 
-async function updateAdminRecord(row) {
-  const recordId = row?.dataset.recordId;
-  if (!recordId || !editorToken()) return;
-  const prediction = row.querySelector(".admin-record-prediction")?.value || "cavity";
-  const confidencePercent = Number(row.querySelector(".admin-record-confidence")?.value || 0);
-  const confidence = Math.max(0, Math.min(1, confidencePercent / 100));
-  const response = await fetch(`${localApiBase}/records/${recordId}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json", ...editorHeaders() },
-    body: JSON.stringify({ prediction, confidence }),
-  });
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  appendLog(`[admin] updated record=${recordId}`);
-}
-
 async function deleteAdminRecord(row) {
   const recordId = row?.dataset.recordId;
   if (!recordId || !editorToken()) return;
@@ -959,7 +977,6 @@ async function handleAdminRecordAction(event) {
   const row = button.closest("tr");
   button.disabled = true;
   try {
-    if (button.dataset.adminRecordAction === "save") await updateAdminRecord(row);
     if (button.dataset.adminRecordAction === "delete") await deleteAdminRecord(row);
     await loadAdminRecords();
     await loadAdminDashboard();

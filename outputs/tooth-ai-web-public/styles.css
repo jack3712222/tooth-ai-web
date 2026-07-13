@@ -640,20 +640,48 @@ h3 {
   overflow-x: auto;
 }
 
-.admin-record-table select,
-.admin-record-table input {
-  min-width: 116px;
-  min-height: 38px;
-  padding: 8px 10px;
-  border: 1px solid #d8e2ef;
-  border-radius: 6px;
-  background: #fff;
-  color: #172033;
-  font: inherit;
+.admin-record-table td {
+  vertical-align: top;
 }
 
-.admin-record-table input {
-  width: 116px;
+.admin-record-table strong {
+  display: block;
+  margin-bottom: 4px;
+  color: #172033;
+  overflow-wrap: anywhere;
+}
+
+.admin-record-table small {
+  display: block;
+  color: #64748b;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.admin-finding-list {
+  display: grid;
+  gap: 6px;
+  min-width: 190px;
+}
+
+.finding-chip {
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  padding: 5px 8px;
+  color: #64748b;
+  background: #f8fafc;
+  border: 1px solid #d8e2ef;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.finding-chip.active {
+  color: #065f46;
+  background: #ecfdf5;
+  border-color: #bbf7d0;
 }
 
 .admin-record-table td:last-child {
