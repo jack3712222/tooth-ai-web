@@ -10,7 +10,7 @@
     />
     <meta name="referrer" content="no-referrer" />
     <title>牙齒 AI 檢測平台</title>
-    <link rel="stylesheet" href="./styles.css?v=20260714-detect-fix" />
+    <link rel="stylesheet" href="./styles.css?v=20260714-no-demo-choice" />
   </head>
   <body>
     <header class="sidebar">
@@ -724,16 +724,12 @@
             <h3>輸入影像</h3>
             <div id="previewBox" class="preview">
               <div class="preview-tooth"></div>
-              <span id="previewLabel">目前選擇：蛀牙範例</span>
+              <span id="previewLabel">尚未上傳影像</span>
             </div>
             <label class="upload">
               <input id="imageUpload" type="file" accept="image/png,image/jpeg,image/webp,image/bmp" />
               上傳牙科 X-ray 圖片
             </label>
-            <div class="demo-buttons">
-              <button data-demo="蛀牙" class="demo-choice selected">蛀牙</button>
-              <button data-demo="阻生智齒" class="demo-choice">阻生智齒</button>
-            </div>
             <button id="predictBtn" class="primary full" type="button" disabled>使用本機模型推論</button>
             <p id="localInferenceHelp" class="notice">請先在本機啟動 API，再按「連線本機模型」。模型與影像不會上傳雲端。</p>
             <p class="visitor-note">Demo 可直接上傳 X-ray 測試；模型切換、結果修正與後台紀錄由管理功能處理。</p>
@@ -942,6 +938,6 @@
     </main>
 
     <script src="./data-records.js?v=20260707-photos"></script>
-    <script src="./app.js?v=20260714-detect-fix"></script>
+    <script src="./app.js?v=20260714-no-demo-choice"></script>
   </body>
 </html>

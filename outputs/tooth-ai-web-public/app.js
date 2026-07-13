@@ -2,7 +2,7 @@ let totalEpochs = 100;
 let currentEpoch = 0;
 let trainingTimer = null;
 let isPaused = false;
-let selectedDemo = "蛀牙";
+let selectedDemo = "";
 let currentPreviewUrl = null;
 let currentUploadFile = null;
 let currentImageInfo = {
@@ -1776,21 +1776,20 @@ function renderDetectionBoxes() {
   updateImageInfoUi();
 }
 
-function setPendingSelection(label) {
-  selectedDemo = normalizePredictionLabel(label);
-  if (!["蛀牙", "阻生智齒"].includes(selectedDemo)) selectedDemo = "蛀牙";
+function resetDemoInferenceState() {
+  selectedDemo = "";
   currentConfidence = 0;
   els.predictionValue.textContent = "尚未推論";
   els.confidenceValue.textContent = "上傳影像並按推論後顯示數量";
-  els.heroPrediction.textContent = selectedDemo;
-  els.heroConfidence.textContent = "待人工標註";
-  if (els.topResult) els.topResult.textContent = selectedDemo;
-  if (els.manualPredictionInput) els.manualPredictionInput.value = selectedDemo;
+  els.heroPrediction.textContent = "尚未推論";
+  els.heroConfidence.textContent = "等待模型推論";
+  if (els.topResult) els.topResult.textContent = "尚未推論";
+  if (els.manualPredictionInput) els.manualPredictionInput.value = "蛀牙";
   if (els.manualConfidenceInput) els.manualConfidenceInput.value = "0";
   currentPredictionBoxes = [];
   renderProbabilities();
   updateImageInfoUi();
-  updateSlicerViewer(selectedDemo, 0, "人工標註預覽");
+  updateSlicerViewer("未偵測到目標", 0, "等待本機推論");
 }
 
 function getDemoRecords() {
@@ -1905,10 +1904,16 @@ function setPrediction(label, animated = false) {
 }
 
 function runPrediction() {
-  appendLog(`[demo] input image received, preprocessing label_hint=${selectedDemo}`);
+  appendLog("[demo] input image received, running model inference");
   const apiBase = apiBaseUrl();
   if (localApiOnline && currentUploadFile) {
-    setPrediction(selectedDemo, true);
+    els.predictionValue.textContent = "推論中";
+    els.confidenceValue.textContent = "正在讀取本機模型輸出";
+    els.heroPrediction.textContent = "推論中";
+    els.heroConfidence.textContent = "正在偵測蛀牙與阻生智齒";
+    if (els.topResult) els.topResult.textContent = "推論中";
+    els.pipelineResult.textContent = "Running";
+    updateSlicerViewer("未偵測到目標", 0, "推論中");
     runApiPrediction(apiBase, currentUploadFile);
     return;
   }
@@ -1926,8 +1931,6 @@ async function runApiPrediction(apiBase, file) {
   try {
     const form = new FormData();
     form.append("file", file);
-    form.append("prediction", selectedDemo);
-    form.append("confidence", String(currentConfidence / 100));
     const response = await fetch(`${apiBase.replace(/\/$/, "")}/predict`, {
       method: "POST",
       headers: editorHeaders(),
@@ -2024,16 +2027,6 @@ document.querySelectorAll(".sample").forEach((button) => {
   });
 });
 
-document.querySelectorAll(".demo-choice").forEach((button) => {
-  button.addEventListener("click", () => {
-    document.querySelectorAll(".demo-choice").forEach((el) => el.classList.remove("selected"));
-    button.classList.add("selected");
-    setPendingSelection(button.dataset.demo);
-    const label = document.querySelector("#previewLabel");
-    if (label) label.textContent = `Selected sample: ${button.dataset.demo}`;
-  });
-});
-
 els.imageUpload.addEventListener("change", (event) => {
   const file = event.target.files[0];
   if (!file) return;
@@ -2052,6 +2045,8 @@ els.imageUpload.addEventListener("change", (event) => {
   }
   currentUploadFile = file;
   currentPredictionBoxes = [];
+  selectedDemo = "";
+  currentConfidence = 0;
   if (currentPreviewUrl) {
     URL.revokeObjectURL(currentPreviewUrl);
     currentPreviewUrl = null;
@@ -2083,6 +2078,10 @@ els.imageUpload.addEventListener("change", (event) => {
     els.medicalViewerImage.src = isImageFile ? url : "";
     els.medicalViewerImage.onload = renderDetectionBoxes;
   }
+  els.predictionValue.textContent = "尚未推論";
+  els.confidenceValue.textContent = "影像已載入，請按本機模型推論";
+  if (els.topResult) els.topResult.textContent = "尚未推論";
+  renderProbabilities();
   updateImageInfoUi();
   if (els.predictBtn) els.predictBtn.disabled = !localApiOnline;
   appendLog(`[demo] uploaded file=${file.name}`);
@@ -2221,7 +2220,7 @@ document.querySelectorAll('a[href^="#"]').forEach((link) => {
   });
 });
 
-setPendingSelection("蛀牙");
+resetDemoInferenceState();
 setLastUpdatedTime();
 setAccessMode(localStorage.getItem(accessModeKey) || "visitor");
 renderDemoRecords();
