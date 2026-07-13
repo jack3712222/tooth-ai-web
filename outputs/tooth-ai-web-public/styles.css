@@ -1660,6 +1660,11 @@ th {
   border-radius: 8px;
 }
 
+.result-main strong {
+  line-height: 1.25;
+  word-break: keep-all;
+}
+
 .prob-list {
   display: grid;
   gap: 12px;
@@ -1808,7 +1813,7 @@ th {
 
 .slicer-scene {
   position: relative;
-  min-height: 360px;
+  min-height: 0;
   background:
     radial-gradient(circle at 52% 48%, rgba(220, 235, 246, .92) 0 8%, rgba(150, 170, 190, .72) 9% 16%, transparent 17%),
     radial-gradient(circle at 40% 55%, rgba(190, 210, 225, .55) 0 10%, transparent 12%),
@@ -1830,9 +1835,9 @@ th {
 .medical-viewer-image {
   display: block;
   width: 100%;
-  min-height: 360px;
-  max-height: 560px;
-  object-fit: contain;
+  height: auto;
+  max-height: none;
+  object-fit: initial;
   background: #050816;
 }
 

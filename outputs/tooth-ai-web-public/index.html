@@ -10,7 +10,7 @@
     />
     <meta name="referrer" content="no-referrer" />
     <title>牙齒 AI 檢測平台</title>
-    <link rel="stylesheet" href="./styles.css?v=20260713-demo-ui" />
+    <link rel="stylesheet" href="./styles.css?v=20260714-counts" />
   </head>
   <body>
     <header class="sidebar">
@@ -741,8 +741,8 @@
           <div class="panel demo-output">
             <h3>推論結果</h3>
             <div class="result-main">
-              <span>主要偵測結果</span>
-              <strong id="predictionValue">蛀牙</strong>
+              <span>偵測數量</span>
+              <strong id="predictionValue">尚未推論</strong>
               <small id="confidenceValue">等待模型推論</small>
             </div>
             <div class="prob-list" id="probList"></div>
@@ -817,7 +817,7 @@
               <div><dt>影像檔名</dt><dd id="imageNameValue">sample-cavity.png</dd></div>
               <div><dt>影像來源</dt><dd id="imageTypeValue">demo sample</dd></div>
               <div><dt>影像大小</dt><dd id="imageSizeValue">--</dd></div>
-              <div><dt>主要結果</dt><dd id="savedPredictionValue">蛀牙</dd></div>
+              <div><dt>主要結果</dt><dd id="savedPredictionValue">尚未推論</dd></div>
               <div><dt>偵測信心</dt><dd id="savedConfidenceValue">--</dd></div>
               <div><dt>儲存筆數</dt><dd id="recordCountValue">0</dd></div>
             </dl>
@@ -940,6 +940,6 @@
     </main>
 
     <script src="./data-records.js?v=20260707-photos"></script>
-    <script src="./app.js?v=20260713-demo-ui"></script>
+    <script src="./app.js?v=20260714-counts"></script>
   </body>
 </html>

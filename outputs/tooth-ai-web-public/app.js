@@ -1581,25 +1581,50 @@ function detectionClassLabel(value) {
   return value === "wisdom_tooth" ? "阻生智齒" : "蛀牙";
 }
 
+function detectionStats() {
+  const boxes = Array.isArray(currentPredictionBoxes) ? currentPredictionBoxes : [];
+  const stats = {
+    cavity: { label: "蛀牙", count: 0, maxConfidence: 0 },
+    wisdom_tooth: { label: "阻生智齒", count: 0, maxConfidence: 0 },
+  };
+  boxes.forEach((box) => {
+    const key = box.class === "wisdom_tooth" ? "wisdom_tooth" : "cavity";
+    stats[key].count += 1;
+    stats[key].maxConfidence = Math.max(stats[key].maxConfidence, Number(box.confidence) || 0);
+  });
+  return stats;
+}
+
+function detectionCountSummary() {
+  const stats = detectionStats();
+  const total = stats.cavity.count + stats.wisdom_tooth.count;
+  if (!total && currentConfidence > 0) return `人工標註：${selectedDemo}`;
+  if (!total) return "尚未推論";
+  return `蛀牙 ${stats.cavity.count} 個，阻生智齒 ${stats.wisdom_tooth.count} 個`;
+}
+
+function detectionConfidenceSummary() {
+  const stats = detectionStats();
+  const total = stats.cavity.count + stats.wisdom_tooth.count;
+  if (!total) return currentConfidence > 0 ? `偵測信心 ${currentConfidence}%` : "上傳影像並按推論後顯示數量";
+  const best = stats.cavity.maxConfidence >= stats.wisdom_tooth.maxConfidence ? stats.cavity : stats.wisdom_tooth;
+  return `共 ${total} 個偵測框，最高信心 ${best.label} ${(best.maxConfidence * 100).toFixed(1)}%`;
+}
+
 function renderProbabilities() {
   els.probList.replaceChildren();
-  const boxes = Array.isArray(currentPredictionBoxes) ? currentPredictionBoxes : [];
-  if (boxes.length) {
-    const groups = labels.map((label) => {
-      const apiClass = label === "阻生智齒" ? "wisdom_tooth" : "cavity";
-      const matched = boxes.filter((box) => box.class === apiClass);
-      const maxConfidence = matched.reduce((max, box) => Math.max(max, Number(box.confidence) || 0), 0);
-      return { label, count: matched.length, maxConfidence };
-    }).filter((item) => item.count > 0);
-    groups.forEach((group) => {
+  const stats = detectionStats();
+  const total = stats.cavity.count + stats.wisdom_tooth.count;
+  if (total) {
+    Object.values(stats).forEach((group) => {
       const item = document.createElement("div");
       item.className = "prob-item summary";
       const labelNode = document.createElement("strong");
       labelNode.textContent = group.label;
       const detailNode = document.createElement("span");
-      detailNode.textContent = `${group.count} 個偵測框`;
+      detailNode.textContent = `${group.count} 個`;
       const valueNode = document.createElement("b");
-      valueNode.textContent = `最高信心 ${(group.maxConfidence * 100).toFixed(1)}%`;
+      valueNode.textContent = group.count ? `最高信心 ${(group.maxConfidence * 100).toFixed(1)}%` : "未偵測到";
       item.append(labelNode, detailNode, valueNode);
       els.probList.appendChild(item);
     });
@@ -1679,8 +1704,8 @@ function updateImageInfoUi() {
   if (els.imageNameValue) els.imageNameValue.textContent = currentImageInfo.name;
   if (els.imageTypeValue) els.imageTypeValue.textContent = currentImageInfo.type;
   if (els.imageSizeValue) els.imageSizeValue.textContent = currentImageInfo.size;
-  if (els.savedPredictionValue) els.savedPredictionValue.textContent = selectedDemo;
-  if (els.savedConfidenceValue) els.savedConfidenceValue.textContent = `${currentConfidence}%`;
+  if (els.savedPredictionValue) els.savedPredictionValue.textContent = detectionCountSummary();
+  if (els.savedConfidenceValue) els.savedConfidenceValue.textContent = detectionConfidenceSummary();
 }
 
 function updateSlicerViewer(label, confidence, status = "已完成") {
@@ -1713,14 +1738,15 @@ function renderDetectionBoxes() {
     marker.appendChild(label);
     els.detectionOverlay.appendChild(marker);
   });
+  updateImageInfoUi();
 }
 
 function setPendingSelection(label) {
   selectedDemo = normalizePredictionLabel(label);
   if (!["蛀牙", "阻生智齒"].includes(selectedDemo)) selectedDemo = "蛀牙";
   currentConfidence = 0;
-  els.predictionValue.textContent = selectedDemo;
-  els.confidenceValue.textContent = "待人工標註";
+  els.predictionValue.textContent = "尚未推論";
+  els.confidenceValue.textContent = "上傳影像並按推論後顯示數量";
   els.heroPrediction.textContent = selectedDemo;
   els.heroConfidence.textContent = "待人工標註";
   if (els.topResult) els.topResult.textContent = selectedDemo;
@@ -1821,7 +1847,8 @@ function setPrediction(label, animated = false) {
   const baseProfile = predictionProfiles[label];
   const max = animated ? currentConfidence : Math.max(...baseProfile);
   currentConfidence = animated ? currentConfidence : max;
-  els.predictionValue.textContent = animated ? "Analyzing..." : label;
+  if (!animated) currentPredictionBoxes = [];
+  els.predictionValue.textContent = animated ? "推論中" : detectionCountSummary();
   els.confidenceValue.textContent = animated ? "偵測信心 --" : `偵測信心 ${max}%`;
   els.heroPrediction.textContent = label;
   els.heroConfidence.textContent = animated ? "推論中" : `偵測信心 ${max}%`;
@@ -1836,7 +1863,6 @@ function setPrediction(label, animated = false) {
     };
     els.explainText.textContent = notes[label];
   }
-  if (!animated) currentPredictionBoxes = [];
   renderProbabilities();
   els.pipelineResult.textContent = animated ? "Running" : "Output";
   updateImageInfoUi();
@@ -1895,11 +1921,13 @@ async function runApiPrediction(apiBase, file) {
 function applyResultToUi(label, confidence, status = "已完成") {
   selectedDemo = normalizePredictionLabel(label);
   currentConfidence = clampConfidence(confidence);
-  els.predictionValue.textContent = selectedDemo;
-  els.confidenceValue.textContent = selectedDemo === "未偵測到目標" ? "未偵測到目標" : `偵測信心 ${currentConfidence}%`;
-  els.heroPrediction.textContent = selectedDemo;
-  els.heroConfidence.textContent = selectedDemo === "未偵測到目標" ? "未偵測到目標" : `偵測信心 ${currentConfidence}%`;
-  if (els.topResult) els.topResult.textContent = selectedDemo;
+  const countSummary = detectionCountSummary();
+  const confidenceSummary = detectionConfidenceSummary();
+  els.predictionValue.textContent = countSummary;
+  els.confidenceValue.textContent = selectedDemo === "未偵測到目標" ? "未偵測到目標" : confidenceSummary;
+  els.heroPrediction.textContent = countSummary;
+  els.heroConfidence.textContent = selectedDemo === "未偵測到目標" ? "未偵測到目標" : confidenceSummary;
+  if (els.topResult) els.topResult.textContent = countSummary;
   renderProbabilities();
   updateImageInfoUi();
   updateSlicerViewer(selectedDemo, currentConfidence, status);
