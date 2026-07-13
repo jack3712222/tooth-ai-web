@@ -6,11 +6,11 @@
     <meta name="robots" content="noindex, nofollow" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; connect-src 'self' http://127.0.0.1:8000 http://localhost:8000 https:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data: https://media.springernature.com; connect-src 'self' http://127.0.0.1:8000 http://localhost:8000 https:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"
     />
     <meta name="referrer" content="no-referrer" />
     <title>牙齒 AI 檢測平台</title>
-    <link rel="stylesheet" href="./styles.css?v=20260714-admin-cases" />
+    <link rel="stylesheet" href="./styles.css?v=20260714-reference-metrics" />
   </head>
   <body>
     <header class="sidebar">
@@ -386,6 +386,14 @@
             <article><span>官方 FLOPs</span><strong>78.9B</strong><small>input size 640 px benchmark</small></article>
             <article><span>輸出類別</span><strong>2 classes</strong><small>cavity / wisdom_tooth</small></article>
           </div>
+          <figure class="online-architecture-figure">
+            <img src="https://media.springernature.com/lw1200/springer-static/image/art%3A10.1038%2Fs41598-025-94936-9/MediaObjects/41598_2025_94936_Fig1_HTML.jpg" alt="YOLOv8 網路架構參考圖，包含 Backbone、Neck 與 Head" referrerpolicy="no-referrer" />
+            <figcaption>
+              <strong>YOLOv8 架構參考圖</strong>
+              <span>圖中由 Backbone、Neck 與 Detect Head 組成；本專案使用 YOLOv8m Detect，並依 DENTEX 資料設定為 cavity 與 wisdom_tooth 兩類。</span>
+              <a href="https://www.nature.com/articles/s41598-025-94936-9/figures/1" target="_blank" rel="noopener noreferrer">來源：Scientific Reports Fig. 1（YOLOv8 結構）</a>
+            </figcaption>
+          </figure>
           <div id="simpleArch" class="architecture-diagram simple-architecture">
             <canvas id="simpleArchCanvas" class="yolo-architecture-canvas" role="img" aria-label="YOLOv8m 簡化架構圖：輸入影像、Backbone、Neck 與 Detect Head"></canvas>
             <div class="architecture-caption"><strong>YOLOv8m 簡圖</strong><span>Input → Backbone (Conv / C2f / SPPF) → PAN-FPN Neck → Detect P3/P4/P5</span></div>
@@ -676,6 +684,23 @@
             <strong>0.7138</strong>
             <p>Precision 和 Recall 的綜合評分，程式中也有自動計算。</p>
           </article>
+        </div>
+        <div class="panel metric-guide-panel">
+          <div class="panel-title-row"><div><p class="eyebrow">Metric Guide</p><h3>本專案使用的評價指標</h3></div><span class="tag fixed">Test split</span></div>
+          <p class="notice">先以 IoU 決定預測框是否對到真實標註，再統計 TP、FP、FN。偵測模型主要以 mAP、Precision、Recall 與 F1 判讀；Accuracy 與平均時間作為本次 72 組比較的輔助欄位。</p>
+          <div class="metric-guide-grid">
+            <article><h4>IoU</h4><code>IoU = area(B_pred ∩ B_gt) / area(B_pred ∪ B_gt)</code><p>預測框與真實框的重疊比例。IoU 越高，位置與大小越接近；本頁的 @50 表示 IoU 門檻為 0.50。</p></article>
+            <article><h4>TP / FP / FN</h4><code>TP: 正確偵測　FP: 誤報　FN: 漏檢</code><p>TP 是模型框到且類別正確的目標；FP 是不該框卻框到；FN 是資料有標註但模型沒有偵測到。</p></article>
+            <article><h4>Precision</h4><code>P = TP / (TP + FP)</code><p>回答「模型報出的結果有多可信」。高 Precision 代表誤報較少，適合降低不必要的警示。</p></article>
+            <article><h4>Recall</h4><code>R = TP / (TP + FN)</code><p>回答「真實目標有多少被找到」。高 Recall 代表漏檢較少，醫療篩檢時尤其重要。</p></article>
+            <article><h4>F1-score</h4><code>F1 = 2PR / (P + R)</code><p>Precision 與 Recall 的調和平均。只有兩者都好時 F1 才會高，適合比較偵測的整體平衡。</p></article>
+            <article><h4>AP@50</h4><code>AP = area under P-R curve, IoU = 0.50</code><p>單一類別在不同信心門檻下的 Precision-Recall 曲線面積。本頁分別列出 Cavity AP@50 與 Wisdom Tooth AP@50。</p></article>
+            <article><h4>mAP@50</h4><code>mAP@50 = mean(AP_c) at IoU 0.50</code><p>兩個類別 AP@50 的平均，是本專案選擇最佳組合的主要偵測指標。</p></article>
+            <article><h4>mAP@50-95</h4><code>mean AP over IoU = 0.50, 0.55, …, 0.95</code><p>比 mAP@50 更嚴格，會要求框的位置更精準。它低於 mAP@50 是正常現象。</p></article>
+            <article><h4>Accuracy（輔助）</h4><code>(TP + TN) / (TP + TN + FP + FN)</code><p>本次 Excel 比較欄位。目標偵測中 TN 定義不像分類直觀，因此不作為主要模型選擇依據。</p></article>
+            <article><h4>Avg Time</h4><code>mean(training time per run)</code><p>每組 10 runs 的平均訓練時間；越低代表實驗成本較小，但不能取代偵測準確度。</p></article>
+            <article><h4>Composite（網站統整）</h4><code>normalized quality metrics + inverse normalized time</code><p>網站將各品質指標正規化後，反向計入平均時間的排序分數。它是介面比較用，不是 Ultralytics 官方指標。</p></article>
+          </div>
         </div>
         <div class="panel matrix-panel">
           <h3>偵測類別結果摘要</h3>
