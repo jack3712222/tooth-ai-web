@@ -258,6 +258,11 @@ const els = {
   adminBackupCount: document.querySelector("#adminBackupCount"),
   adminActiveModel: document.querySelector("#adminActiveModel"),
   adminLatestRecord: document.querySelector("#adminLatestRecord"),
+  adminActiveModelSelect: document.querySelector("#adminActiveModelSelect"),
+  adminApplyModelBtn: document.querySelector("#adminApplyModelBtn"),
+  adminModelHint: document.querySelector("#adminModelHint"),
+  adminRecordTableBody: document.querySelector("#adminRecordTableBody"),
+  refreshAdminRecordsBtn: document.querySelector("#refreshAdminRecordsBtn"),
   auditTableBody: document.querySelector("#auditTableBody"),
   refreshAdminBtn: document.querySelector("#refreshAdminBtn"),
 };
@@ -764,6 +769,7 @@ function setAccessMode(mode) {
   if (editorEnabled) {
     loadModelManagement();
     loadAdminDashboard();
+    loadAdminRecords();
   }
   appendLog(`[access] mode=${safeMode}`);
 }
@@ -782,33 +788,193 @@ function formatAdminTime(value) {
   }).format(new Date(Number(value) * 1000));
 }
 
+function apiPredictionToLabel(value) {
+  return normalizePredictionLabel(value);
+}
+
+function labelToApiPrediction(value) {
+  if (value === "阻生智齒") return "wisdom_tooth";
+  if (value === "未偵測到目標") return "No Finding";
+  return "cavity";
+}
+
+function formatConfidenceValue(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return "--";
+  return `${Math.round(numeric * 1000) / 10}%`;
+}
+
 async function loadModelManagement() {
-  if (!editorToken() || !els.activeModelSelect) return;
+  if (!editorToken()) return;
   try {
     const response = await fetch(`${localApiBase}/models`, { headers: editorHeaders() });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data = await response.json();
-    els.activeModelSelect.replaceChildren();
-    (data.available || []).forEach((model) => {
-      const option = document.createElement("option");
-      option.value = model;
-      option.textContent = model;
-      option.selected = model === data.active;
-      els.activeModelSelect.appendChild(option);
+    [els.activeModelSelect, els.adminActiveModelSelect].filter(Boolean).forEach((select) => {
+      select.replaceChildren();
+      (data.available || []).forEach((model) => {
+        const option = document.createElement("option");
+        option.value = model;
+        option.textContent = model;
+        option.selected = model === data.active;
+        select.appendChild(option);
+      });
+      select.disabled = !(data.available || []).length;
     });
-    els.activeModelSelect.disabled = !(data.available || []).length;
     if (els.applyModelBtn) els.applyModelBtn.disabled = !(data.available || []).length;
+    if (els.adminApplyModelBtn) els.adminApplyModelBtn.disabled = !(data.available || []).length;
     if (els.modelManagementHint) els.modelManagementHint.textContent = `目前使用：${data.active || "未找到模型"}`;
+    if (els.adminModelHint) els.adminModelHint.textContent = `目前使用：${data.active || "未找到模型"}`;
   } catch (error) {
     if (els.modelManagementHint) els.modelManagementHint.textContent = "無法讀取模型清單，請確認本機 API 已啟動。";
+    if (els.adminModelHint) els.adminModelHint.textContent = "無法讀取模型清單，請確認本機 API 已啟動。";
     appendLog(`[model] list failed: ${error.message}`);
   }
 }
 
-async function applyActiveModel() {
-  const model = els.activeModelSelect?.value;
+function renderAdminRecords(records) {
+  if (!els.adminRecordTableBody) return;
+  els.adminRecordTableBody.replaceChildren();
+  if (!records.length) {
+    const row = document.createElement("tr");
+    const cell = document.createElement("td");
+    cell.colSpan = 6;
+    cell.textContent = "尚無後台推論紀錄。";
+    row.appendChild(cell);
+    els.adminRecordTableBody.appendChild(row);
+    return;
+  }
+  records.forEach((record) => {
+    const row = document.createElement("tr");
+    row.dataset.recordId = record.id;
+
+    [formatAdminTime(record.created_at), record.image_name || "--"].forEach((value) => {
+      const cell = document.createElement("td");
+      cell.textContent = String(value);
+      row.appendChild(cell);
+    });
+
+    const predictionCell = document.createElement("td");
+    const predictionSelect = document.createElement("select");
+    predictionSelect.className = "admin-record-prediction";
+    [
+      ["cavity", "蛀牙"],
+      ["wisdom_tooth", "阻生智齒"],
+      ["No Finding", "未偵測到目標"],
+    ].forEach(([value, label]) => {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = label;
+      option.selected = value === record.prediction;
+      predictionSelect.appendChild(option);
+    });
+    predictionCell.appendChild(predictionSelect);
+    row.appendChild(predictionCell);
+
+    const confidenceCell = document.createElement("td");
+    const confidenceInput = document.createElement("input");
+    confidenceInput.className = "admin-record-confidence";
+    confidenceInput.type = "number";
+    confidenceInput.min = "0";
+    confidenceInput.max = "100";
+    confidenceInput.step = "0.1";
+    confidenceInput.value = String(Math.round(Number(record.confidence || 0) * 1000) / 10);
+    confidenceInput.setAttribute("aria-label", "Confidence percent");
+    confidenceCell.appendChild(confidenceInput);
+    row.appendChild(confidenceCell);
+
+    const inferenceCell = document.createElement("td");
+    inferenceCell.textContent = `${Math.round(Number(record.inference_ms || 0))} ms`;
+    row.appendChild(inferenceCell);
+
+    const actionCell = document.createElement("td");
+    const saveButton = document.createElement("button");
+    saveButton.type = "button";
+    saveButton.className = "small-action";
+    saveButton.dataset.adminRecordAction = "save";
+    saveButton.textContent = "儲存";
+    const deleteButton = document.createElement("button");
+    deleteButton.type = "button";
+    deleteButton.className = "small-action danger";
+    deleteButton.dataset.adminRecordAction = "delete";
+    deleteButton.textContent = "刪除";
+    actionCell.append(saveButton, deleteButton);
+    row.appendChild(actionCell);
+
+    els.adminRecordTableBody.appendChild(row);
+  });
+}
+
+async function loadAdminRecords() {
+  if (!editorToken()) return;
+  try {
+    const response = await fetch(`${localApiBase}/records`, { headers: editorHeaders() });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    renderAdminRecords(await response.json());
+  } catch (error) {
+    if (els.adminRecordTableBody) {
+      els.adminRecordTableBody.replaceChildren();
+      const row = document.createElement("tr");
+      const cell = document.createElement("td");
+      cell.colSpan = 6;
+      cell.textContent = "無法載入後台紀錄，請確認已登入且 API 已啟動。";
+      row.appendChild(cell);
+      els.adminRecordTableBody.appendChild(row);
+    }
+    appendLog(`[admin] records failed: ${error.message}`);
+  }
+}
+
+async function updateAdminRecord(row) {
+  const recordId = row?.dataset.recordId;
+  if (!recordId || !editorToken()) return;
+  const prediction = row.querySelector(".admin-record-prediction")?.value || "cavity";
+  const confidencePercent = Number(row.querySelector(".admin-record-confidence")?.value || 0);
+  const confidence = Math.max(0, Math.min(1, confidencePercent / 100));
+  const response = await fetch(`${localApiBase}/records/${recordId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...editorHeaders() },
+    body: JSON.stringify({ prediction, confidence }),
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  appendLog(`[admin] updated record=${recordId}`);
+}
+
+async function deleteAdminRecord(row) {
+  const recordId = row?.dataset.recordId;
+  if (!recordId || !editorToken()) return;
+  if (!window.confirm("確定刪除此筆後台紀錄？此操作會移除資料庫紀錄與對應上傳影像。")) return;
+  const response = await fetch(`${localApiBase}/records/${recordId}`, {
+    method: "DELETE",
+    headers: editorHeaders(),
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  appendLog(`[admin] deleted record=${recordId}`);
+}
+
+async function handleAdminRecordAction(event) {
+  const button = event.target.closest("[data-admin-record-action]");
+  if (!button) return;
+  const row = button.closest("tr");
+  button.disabled = true;
+  try {
+    if (button.dataset.adminRecordAction === "save") await updateAdminRecord(row);
+    if (button.dataset.adminRecordAction === "delete") await deleteAdminRecord(row);
+    await loadAdminRecords();
+    await loadAdminDashboard();
+  } catch (error) {
+    appendLog(`[admin] record action failed: ${error.message}`);
+    window.alert("後台紀錄操作失敗，請確認 API 連線與登入狀態。");
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function applyActiveModel(modelOverride) {
+  const model = modelOverride || els.activeModelSelect?.value || els.adminActiveModelSelect?.value;
   if (!model || !editorToken()) return;
   if (els.applyModelBtn) els.applyModelBtn.disabled = true;
+  if (els.adminApplyModelBtn) els.adminApplyModelBtn.disabled = true;
   try {
     const response = await fetch(`${localApiBase}/models/active`, {
       method: "PATCH",
@@ -818,14 +984,18 @@ async function applyActiveModel() {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data = await response.json();
     if (els.modelManagementHint) els.modelManagementHint.textContent = `已套用：${data.active}`;
+    if (els.adminModelHint) els.adminModelHint.textContent = `已套用：${data.active}`;
     appendLog(`[model] active=${data.active}`);
     await checkSystemStatus();
+    await loadModelManagement();
     await loadAdminDashboard();
   } catch (error) {
     if (els.modelManagementHint) els.modelManagementHint.textContent = "模型切換失敗，模型檔案需位於本機 models 資料夾。";
+    if (els.adminModelHint) els.adminModelHint.textContent = "模型切換失敗，模型檔案需位於本機 models 資料夾。";
     appendLog(`[model] switch failed: ${error.message}`);
   } finally {
     if (els.applyModelBtn) els.applyModelBtn.disabled = false;
+    if (els.adminApplyModelBtn) els.adminApplyModelBtn.disabled = false;
   }
 }
 
@@ -1865,7 +2035,10 @@ els.authModal?.addEventListener("click", (event) => {
 els.openModelModalBtn?.addEventListener("click", openModelModal);
 els.closeModelModalBtn?.addEventListener("click", closeModelModal);
 els.applyModelBtn?.addEventListener("click", applyActiveModel);
+els.adminApplyModelBtn?.addEventListener("click", () => applyActiveModel(els.adminActiveModelSelect?.value));
 els.refreshAdminBtn?.addEventListener("click", loadAdminDashboard);
+els.refreshAdminRecordsBtn?.addEventListener("click", loadAdminRecords);
+els.adminRecordTableBody?.addEventListener("click", handleAdminRecordAction);
 els.archSimpleBtn?.addEventListener("click", () => setArchitectureMode("simple"));
 els.archFullBtn?.addEventListener("click", () => setArchitectureMode("full"));
 els.expandParamBtn?.addEventListener("click", () => setParamGroups(true));
@@ -1932,7 +2105,11 @@ function showTab(tabName) {
     link.classList.toggle("active", link.dataset.tab === safeTab);
   });
   window.scrollTo({ top: 0, behavior: "smooth" });
-  if (safeTab === "admin") loadAdminDashboard();
+  if (safeTab === "admin") {
+    loadModelManagement();
+    loadAdminDashboard();
+    loadAdminRecords();
+  }
 }
 
 document.querySelectorAll("nav a[data-tab]").forEach((link) => {

@@ -632,8 +632,54 @@ h3 {
   font-size: 22px;
 }
 
+.admin-model-panel,
+.admin-record-panel {
+  margin-bottom: 18px;
+}
+
+.admin-record-panel,
 .admin-log-panel {
   overflow-x: auto;
+}
+
+.admin-record-table select,
+.admin-record-table input {
+  min-width: 116px;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid #d8e2ef;
+  border-radius: 6px;
+  background: #fff;
+  color: #172033;
+  font: inherit;
+}
+
+.admin-record-table input {
+  width: 116px;
+}
+
+.admin-record-table td:last-child {
+  min-width: 136px;
+  white-space: nowrap;
+}
+
+.small-action {
+  min-height: 34px;
+  padding: 0 10px;
+  margin-right: 6px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.small-action.danger {
+  border-color: #f1b4b4;
+  background: #fff5f5;
+  color: #a83232;
+}
+
+.small-action.danger:hover {
+  border-color: #d96868;
+  background: #ffe9e9;
 }
 
 .segmented-actions {

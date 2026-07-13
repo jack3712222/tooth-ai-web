@@ -47,9 +47,12 @@ BACKUP_DIR.mkdir(parents=True, exist_ok=True)
 app = FastAPI(title="Tooth AI API", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=os.getenv("CORS_ORIGINS", "http://127.0.0.1:8765,http://localhost:8765,https://astounding-cascaron-273497.netlify.app").split(","),
+    allow_origins=os.getenv(
+        "CORS_ORIGINS",
+        "http://127.0.0.1:8765,http://localhost:8765,https://astounding-cascaron-273497.netlify.app,https://jack3712222.github.io",
+    ).split(","),
     allow_credentials=False,
-    allow_methods=["GET", "POST", "PATCH"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE"],
     allow_headers=["*"],
 )
 
@@ -405,6 +408,21 @@ def update_record(record_id: str, update: RecordUpdate, username: str = Depends(
     create_backup_if_due()
     log_audit(username, "update_record", record_id)
     return row_to_dict(updated)
+
+
+@app.delete("/records/{record_id}")
+def delete_record(record_id: str, username: str = Depends(require_editor)) -> dict[str, bool]:
+    with db() as conn:
+        row = conn.execute("select image_path from records where id = ?", (record_id,)).fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="record not found")
+        image_path = Path(str(row["image_path"]))
+        conn.execute("delete from records where id = ?", (record_id,))
+    if image_path.is_file() and image_path.resolve().parent == UPLOAD_DIR.resolve():
+        image_path.unlink(missing_ok=True)
+    create_backup_if_due()
+    log_audit(username, "delete_record", record_id)
+    return {"ok": True}
 
 
 @app.get("/backups")

@@ -849,6 +849,31 @@
           <article class="panel"><span>自動備份</span><strong id="adminBackupCount">--</strong><small>最近 20 份資料庫備份</small></article>
           <article class="panel"><span>目前模型</span><strong id="adminActiveModel">--</strong><small id="adminLatestRecord">尚無儲存紀錄</small></article>
         </div>
+        <div class="panel admin-model-panel">
+          <div class="panel-title-row">
+            <div><p class="eyebrow">Model Control</p><h3>模型管理</h3></div>
+            <span class="tag fixed">權限保護</span>
+          </div>
+          <div class="model-management-controls">
+            <label>目前模型
+              <select id="adminActiveModelSelect" disabled><option>載入中</option></select>
+            </label>
+            <button id="adminApplyModelBtn" type="button" disabled>套用模型</button>
+          </div>
+          <p id="adminModelHint" class="notice">等待本機 API 回傳模型清單。</p>
+        </div>
+        <div class="panel admin-record-panel">
+          <div class="panel-title-row">
+            <div><p class="eyebrow">Records</p><h3>推論紀錄管理</h3></div>
+            <button id="refreshAdminRecordsBtn" type="button">重新整理</button>
+          </div>
+          <table class="admin-record-table">
+            <thead>
+              <tr><th>時間</th><th>照片</th><th>Prediction</th><th>Confidence</th><th>Inference</th><th>操作</th></tr>
+            </thead>
+            <tbody id="adminRecordTableBody"><tr><td colspan="6">等待紀錄載入。</td></tr></tbody>
+          </table>
+        </div>
         <div class="panel admin-log-panel">
           <div class="panel-title-row">
             <div><p class="eyebrow">Audit Log</p><h3>最近管理操作</h3></div>
