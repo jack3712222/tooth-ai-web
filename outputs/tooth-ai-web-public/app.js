@@ -145,6 +145,7 @@ const els = {
   apiStatus: document.querySelector("#apiStatus"),
   modelStatus: document.querySelector("#modelStatus"),
   slicerBridgeStatus: document.querySelector("#slicerBridgeStatus"),
+  medicalImageStage: document.querySelector("#medicalImageStage"),
   medicalViewerImage: document.querySelector("#medicalViewerImage"),
   medicalViewerPlaceholder: document.querySelector("#medicalViewerPlaceholder"),
   detectionOverlay: document.querySelector("#detectionOverlay"),
@@ -1578,7 +1579,39 @@ function resetTraining() {
 }
 
 function detectionClassLabel(value) {
-  return value === "wisdom_tooth" ? "阻生智齒" : "蛀牙";
+  return normalizeDetectionClass(value) === "wisdom_tooth" ? "阻生智齒" : "蛀牙";
+}
+
+function normalizeDetectionClass(value) {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
+  if (["wisdom_tooth", "impacted_wisdom_tooth", "wisdom", "阻生智齒", "智齒阻生", "阻升智齒"].includes(normalized)) {
+    return "wisdom_tooth";
+  }
+  return "cavity";
+}
+
+function normalizedBoxCoordinates(box, width, height) {
+  const raw = Array.isArray(box.xyxy)
+    ? box.xyxy
+    : [box.x1, box.y1, box.x2, box.y2];
+  let [x1, y1, x2, y2] = raw.map(Number);
+  if (![x1, y1, x2, y2].every(Number.isFinite) || x2 <= x1 || y2 <= y1) return null;
+  const appearsNormalized = Math.max(x1, y1, x2, y2) <= 1.5;
+  if (appearsNormalized) {
+    x1 *= width;
+    x2 *= width;
+    y1 *= height;
+    y2 *= height;
+  }
+  return [
+    Math.max(0, Math.min(width, x1)),
+    Math.max(0, Math.min(height, y1)),
+    Math.max(0, Math.min(width, x2)),
+    Math.max(0, Math.min(height, y2)),
+  ];
 }
 
 function detectionStats() {
@@ -1588,7 +1621,7 @@ function detectionStats() {
     wisdom_tooth: { label: "阻生智齒", count: 0, maxConfidence: 0 },
   };
   boxes.forEach((box) => {
-    const key = box.class === "wisdom_tooth" ? "wisdom_tooth" : "cavity";
+    const key = normalizeDetectionClass(box.class ?? box.label ?? box.name ?? box.class_name);
     stats[key].count += 1;
     stats[key].maxConfidence = Math.max(stats[key].maxConfidence, Number(box.confidence) || 0);
   });
@@ -1720,21 +1753,23 @@ function updateSlicerViewer(label, confidence, status = "已完成") {
 }
 
 function renderDetectionBoxes() {
-  if (!els.detectionOverlay || !els.medicalViewerImage || els.medicalViewerImage.hidden) return;
+  if (!els.detectionOverlay || !els.medicalViewerImage || els.medicalImageStage?.hidden) return;
   els.detectionOverlay.replaceChildren();
   const width = els.medicalViewerImage.naturalWidth || 1;
   const height = els.medicalViewerImage.naturalHeight || 1;
   currentPredictionBoxes.forEach((box) => {
-    const [x1, y1, x2, y2] = Array.isArray(box.xyxy) ? box.xyxy.map(Number) : [];
-    if (![x1, y1, x2, y2].every(Number.isFinite) || x2 <= x1 || y2 <= y1) return;
+    const coords = normalizedBoxCoordinates(box, width, height);
+    if (!coords) return;
+    const [x1, y1, x2, y2] = coords;
     const marker = document.createElement("div");
-    marker.className = `detection-box ${box.class === "wisdom_tooth" ? "wisdom" : "cavity"}`;
+    const detectionClass = normalizeDetectionClass(box.class ?? box.label ?? box.name ?? box.class_name);
+    marker.className = `detection-box ${detectionClass === "wisdom_tooth" ? "wisdom" : "cavity"}`;
     marker.style.left = `${(x1 / width) * 100}%`;
     marker.style.top = `${(y1 / height) * 100}%`;
     marker.style.width = `${((x2 - x1) / width) * 100}%`;
     marker.style.height = `${((y2 - y1) / height) * 100}%`;
     const label = document.createElement("span");
-    label.textContent = `${detectionClassLabel(box.class)} ${(Number(box.confidence) * 100).toFixed(1)}%`;
+    label.textContent = `${detectionClassLabel(detectionClass)} ${(Number(box.confidence) * 100).toFixed(1)}%`;
     marker.appendChild(label);
     els.detectionOverlay.appendChild(marker);
   });
@@ -2041,10 +2076,11 @@ els.imageUpload.addEventListener("change", (event) => {
     placeholder.className = "preview-tooth";
     els.previewBox.replaceChildren(placeholder, label);
   }
-  if (els.medicalViewerImage && els.medicalViewerPlaceholder) {
-    els.medicalViewerPlaceholder.hidden = true;
-    els.medicalViewerImage.hidden = !file.type.startsWith("image/");
-    els.medicalViewerImage.src = file.type.startsWith("image/") ? url : "";
+  if (els.medicalViewerImage && els.medicalViewerPlaceholder && els.medicalImageStage) {
+    const isImageFile = file.type.startsWith("image/");
+    els.medicalViewerPlaceholder.hidden = isImageFile;
+    els.medicalImageStage.hidden = !isImageFile;
+    els.medicalViewerImage.src = isImageFile ? url : "";
     els.medicalViewerImage.onload = renderDetectionBoxes;
   }
   updateImageInfoUi();

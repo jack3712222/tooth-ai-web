@@ -1832,6 +1832,12 @@ th {
   font-weight: 800;
 }
 
+.medical-image-stage {
+  position: relative;
+  width: 100%;
+  background: #050816;
+}
+
 .medical-viewer-image {
   display: block;
   width: 100%;

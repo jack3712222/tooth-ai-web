@@ -10,7 +10,7 @@
     />
     <meta name="referrer" content="no-referrer" />
     <title>牙齒 AI 檢測平台</title>
-    <link rel="stylesheet" href="./styles.css?v=20260714-counts" />
+    <link rel="stylesheet" href="./styles.css?v=20260714-detect-fix" />
   </head>
   <body>
     <header class="sidebar">
@@ -804,8 +804,10 @@
               </div>
               <div id="slicerScene" class="slicer-scene">
                 <div id="medicalViewerPlaceholder" class="medical-viewer-placeholder">上傳 OPG X-ray 後，在此顯示原圖與偵測框。</div>
-                <img id="medicalViewerImage" class="medical-viewer-image" alt="上傳的 OPG X-ray" hidden />
-                <div id="detectionOverlay" class="detection-overlay" aria-live="polite"></div>
+                <div id="medicalImageStage" class="medical-image-stage" hidden>
+                  <img id="medicalViewerImage" class="medical-viewer-image" alt="上傳的 OPG X-ray" />
+                  <div id="detectionOverlay" class="detection-overlay" aria-live="polite"></div>
+                </div>
               </div>
             </div>
             <p class="slicer-note">這是網頁端 2D OPG 檢視器。偵測框、類別與信心值來自本機 YOLO API；未推論前不顯示假結果。</p>
@@ -940,6 +942,6 @@
     </main>
 
     <script src="./data-records.js?v=20260707-photos"></script>
-    <script src="./app.js?v=20260714-counts"></script>
+    <script src="./app.js?v=20260714-detect-fix"></script>
   </body>
 </html>
