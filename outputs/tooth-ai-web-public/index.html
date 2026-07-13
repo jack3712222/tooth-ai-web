@@ -840,12 +840,14 @@
         <div class="section-head">
           <p class="eyebrow">Administration</p>
           <h2>後台管理</h2>
-          <p>集中查看本機 API 推論紀錄、自動備份、目前使用模型與操作紀錄。</p>
+          <p>以每張 X-ray 為單位管理推論、人工覆核、備份、模型與安全狀態。</p>
         </div>
         <div class="admin-summary-grid">
           <article class="panel"><span>已儲存推論</span><strong id="adminRecordCount">--</strong><small>後台資料庫紀錄</small></article>
           <article class="panel"><span>自動備份</span><strong id="adminBackupCount">--</strong><small>最近 20 份資料庫備份</small></article>
           <article class="panel"><span>目前模型</span><strong id="adminActiveModel">--</strong><small id="adminLatestRecord">尚無儲存紀錄</small></article>
+          <article class="panel"><span>已覆核案件</span><strong id="adminReviewedCount">--</strong><small>人工確認完成</small></article>
+          <article class="panel"><span>待追蹤案件</span><strong id="adminFollowUpCount">--</strong><small>需要再次確認</small></article>
         </div>
         <div class="panel admin-model-panel">
           <div class="panel-title-row">
@@ -863,14 +865,30 @@
         <div class="panel admin-record-panel">
           <div class="panel-title-row">
             <div><p class="eyebrow">Records</p><h3>推論紀錄管理</h3></div>
-            <button id="refreshAdminRecordsBtn" type="button">重新整理</button>
+            <div class="button-row"><button id="exportAdminRecordsBtn" type="button">匯出清單</button><button id="refreshAdminRecordsBtn" type="button">重新整理</button></div>
+          </div>
+          <div class="admin-filter-row">
+            <label>搜尋影像或案件編號<input id="adminRecordSearch" type="search" placeholder="輸入檔名或案件 ID" /></label>
+            <label>覆核狀態<select id="adminRecordStatusFilter"><option value="all">全部</option><option value="pending">待覆核</option><option value="reviewed">已覆核</option><option value="needs_follow_up">待追蹤</option></select></label>
+            <label>排序<select id="adminRecordSort"><option value="newest">最新優先</option><option value="oldest">最早優先</option><option value="findings">偵測數量</option><option value="review">覆核狀態</option></select></label>
           </div>
           <table class="admin-record-table">
             <thead>
-              <tr><th>時間</th><th>照片資料夾</th><th>影像內容</th><th>偵測框摘要</th><th>推論時間</th><th>操作</th></tr>
+              <tr><th>時間</th><th>照片資料夾</th><th>影像內容</th><th>偵測框摘要</th><th>覆核狀態</th><th>操作</th></tr>
             </thead>
             <tbody id="adminRecordTableBody"><tr><td colspan="6">等待紀錄載入。</td></tr></tbody>
           </table>
+        </div>
+        <div class="admin-two-column">
+          <div class="panel">
+            <div class="panel-title-row"><div><p class="eyebrow">Backup</p><h3>備份管理</h3></div><button id="createBackupBtn" type="button">立即建立備份</button></div>
+            <p id="adminBackupHint" class="notice">等待備份資料載入。</p>
+            <div id="backupList" class="backup-list"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-title-row"><div><p class="eyebrow">Security</p><h3>安全與服務</h3></div><button id="refreshSecurityBtn" type="button">重新檢查</button></div>
+            <dl id="securityStatusList" class="security-status-list"><div><dt>登入工作階段</dt><dd>--</dd></div><div><dt>上傳上限</dt><dd>--</dd></div><div><dt>資料庫影像容量</dt><dd>--</dd></div><div><dt>API 狀態</dt><dd>--</dd></div></dl>
+          </div>
         </div>
         <div class="panel admin-log-panel">
           <div class="panel-title-row">
@@ -883,6 +901,21 @@
           </table>
         </div>
       </section>
+
+      <div id="adminRecordModal" class="modal-backdrop" aria-hidden="true">
+        <div class="modal-card admin-record-modal" role="dialog" aria-modal="true" aria-labelledby="adminRecordModalTitle">
+          <button id="closeAdminRecordModalBtn" class="modal-close" type="button" aria-label="關閉">×</button>
+          <p class="eyebrow">Case Review</p><h2 id="adminRecordModalTitle">影像案件</h2>
+          <div class="admin-case-layout"><img id="adminRecordImage" class="admin-record-image" alt="推論影像" /><div id="adminRecordDetails" class="admin-record-details"></div></div>
+          <form id="adminReviewForm" class="admin-review-form">
+            <label>蛀牙數量<input id="adminReviewCavity" type="number" min="0" max="50" required /></label>
+            <label>阻生智齒數量<input id="adminReviewWisdom" type="number" min="0" max="50" required /></label>
+            <label>覆核狀態<select id="adminReviewStatus"><option value="pending">待覆核</option><option value="reviewed">已覆核</option><option value="needs_follow_up">待追蹤</option></select></label>
+            <label class="wide">覆核備註<textarea id="adminReviewNote" rows="3" maxlength="800" placeholder="可記錄人工判讀或後續處理說明"></textarea></label>
+            <div class="form-actions wide"><button id="saveAdminReviewBtn" class="primary" type="submit">儲存覆核</button></div>
+          </form>
+        </div>
+      </div>
 
       <div id="modelModal" class="modal-backdrop" aria-hidden="true">
         <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modelModalTitle">
@@ -938,6 +971,6 @@
     </main>
 
     <script src="./data-records.js?v=20260707-photos"></script>
-    <script src="./app.js?v=20260714-image-records"></script>
+    <script src="./app.js?v=20260714-admin-cases"></script>
   </body>
 </html>

@@ -14,6 +14,7 @@ from typing import Any
 
 import requests
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from PIL import Image, UnidentifiedImageError
@@ -84,10 +85,28 @@ def db() -> sqlite3.Connection:
             confidence real not null,
             inference_ms real not null,
             boxes_json text not null,
-            slicer_json text not null
+            slicer_json text not null,
+            review_status text not null default 'pending',
+            review_note text not null default '',
+            manual_findings_json text not null default '{}',
+            reviewed_at real,
+            reviewed_by text
         )
         """
     )
+    # Existing local databases predate the review fields. SQLite needs an
+    # explicit migration for those installations.
+    existing_columns = {column[1] for column in conn.execute("pragma table_info(records)").fetchall()}
+    migrations = {
+        "review_status": "alter table records add column review_status text not null default 'pending'",
+        "review_note": "alter table records add column review_note text not null default ''",
+        "manual_findings_json": "alter table records add column manual_findings_json text not null default '{}'",
+        "reviewed_at": "alter table records add column reviewed_at real",
+        "reviewed_by": "alter table records add column reviewed_by text",
+    }
+    for name, statement in migrations.items():
+        if name not in existing_columns:
+            conn.execute(statement)
     conn.execute(
         """
         create table if not exists sessions (
@@ -145,9 +164,11 @@ class LoginRequest(BaseModel):
     password: str = Field(min_length=8, max_length=256)
 
 
-class RecordUpdate(BaseModel):
-    prediction: str = Field(pattern="^(cavity|wisdom_tooth|No Finding)$")
-    confidence: float = Field(ge=0, le=1)
+class RecordReviewUpdate(BaseModel):
+    cavity_count: int = Field(ge=0, le=50)
+    wisdom_tooth_count: int = Field(ge=0, le=50)
+    review_status: str = Field(pattern="^(pending|reviewed|needs_follow_up)$")
+    note: str = Field(default="", max_length=800)
 
 
 class ModelSelection(BaseModel):
@@ -180,7 +201,10 @@ def create_backup_if_due() -> None:
     now = time.time()
     if now - last_backup_at < BACKUP_INTERVAL_SECONDS or not DB_PATH.exists():
         return
-    target = BACKUP_DIR / f"records-{time.strftime('%Y%m%d-%H%M%S')}.sqlite3"
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    target = BACKUP_DIR / f"records-{stamp}.sqlite3"
+    if target.exists():
+        target = BACKUP_DIR / f"records-{stamp}-{uuid.uuid4().hex[:6]}.sqlite3"
     with sqlite3.connect(DB_PATH) as source, sqlite3.connect(target) as destination:
         source.backup(destination)
     backups = sorted(BACKUP_DIR.glob("records-*.sqlite3"), key=lambda path: path.stat().st_mtime, reverse=True)
@@ -194,7 +218,13 @@ def row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
     item.pop("image_path", None)
     item["boxes"] = json.loads(item.pop("boxes_json"))
     item["slicer"] = json.loads(item.pop("slicer_json"))
-    item["findings"] = findings_from_boxes(item["boxes"])
+    item["model_findings"] = findings_from_boxes(item["boxes"])
+    try:
+        manual_findings = json.loads(item.pop("manual_findings_json", "{}"))
+    except json.JSONDecodeError:
+        manual_findings = {}
+    item["manual_findings"] = manual_findings if isinstance(manual_findings, dict) else {}
+    item["findings"] = item["manual_findings"] or item["model_findings"]
     return item
 
 
@@ -385,7 +415,10 @@ async def predict(
         with db() as conn:
             conn.execute(
                 """
-                insert into records values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                insert into records (
+                    id, created_at, image_name, image_type, image_size, image_path,
+                    prediction, confidence, inference_ms, boxes_json, slicer_json
+                ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     record["id"], record["created_at"], record["image_name"], record["image_type"],
@@ -419,13 +452,38 @@ def record(record_id: str, username: str = Depends(require_editor)) -> dict[str,
     return row_to_dict(row)
 
 
+@app.get("/records/{record_id}/image")
+def record_image(record_id: str, username: str = Depends(require_editor)) -> FileResponse:
+    with db() as conn:
+        row = conn.execute("select image_name, image_path from records where id = ?", (record_id,)).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="record not found")
+    image_path = Path(str(row["image_path"])).resolve()
+    if not image_path.is_file() or image_path.parent != UPLOAD_DIR.resolve():
+        raise HTTPException(status_code=404, detail="record image not found")
+    return FileResponse(image_path, filename=str(row["image_name"]), media_type="application/octet-stream")
+
+
 @app.patch("/records/{record_id}")
-def update_record(record_id: str, update: RecordUpdate, username: str = Depends(require_editor)) -> dict[str, Any]:
+def update_record(record_id: str, update: RecordReviewUpdate, username: str = Depends(require_editor)) -> dict[str, Any]:
+    manual_findings = {
+        "total": update.cavity_count + update.wisdom_tooth_count,
+        "classes": {
+            "cavity": {"label": "蛀牙", "count": update.cavity_count, "max_confidence": 0.0},
+            "wisdom_tooth": {"label": "阻生智齒", "count": update.wisdom_tooth_count, "max_confidence": 0.0},
+        },
+    }
     with db() as conn:
         row = conn.execute("select * from records where id = ?", (record_id,)).fetchone()
         if row is None:
             raise HTTPException(status_code=404, detail="record not found")
-        conn.execute("update records set prediction = ?, confidence = ? where id = ?", (update.prediction, update.confidence, record_id))
+        conn.execute(
+            """
+            update records set review_status = ?, review_note = ?, manual_findings_json = ?,
+                reviewed_at = ?, reviewed_by = ? where id = ?
+            """,
+            (update.review_status, update.note.strip(), json.dumps(manual_findings), time.time(), username, record_id),
+        )
         updated = conn.execute("select * from records where id = ?", (record_id,)).fetchone()
     create_backup_if_due()
     log_audit(username, "update_record", record_id)
@@ -455,16 +513,36 @@ def backups(username: str = Depends(require_editor)) -> list[dict[str, Any]]:
     ]
 
 
+@app.post("/backups")
+def create_manual_backup(username: str = Depends(require_editor)) -> dict[str, Any]:
+    global last_backup_at
+    last_backup_at = 0.0
+    create_backup_if_due()
+    latest = max(BACKUP_DIR.glob("records-*.sqlite3"), key=lambda path: path.stat().st_mtime, default=None)
+    if latest is None:
+        raise HTTPException(status_code=500, detail="backup could not be created")
+    log_audit(username, "create_backup")
+    return {"name": latest.name, "created_at": latest.stat().st_mtime, "size": latest.stat().st_size}
+
+
 @app.get("/admin/summary")
 def admin_summary(username: str = Depends(require_editor)) -> dict[str, Any]:
     with db() as conn:
         record_count = conn.execute("select count(*) from records").fetchone()[0]
         latest = conn.execute("select created_at from records order by created_at desc limit 1").fetchone()
+        reviewed_count = conn.execute("select count(*) from records where review_status = 'reviewed'").fetchone()[0]
+        follow_up_count = conn.execute("select count(*) from records where review_status = 'needs_follow_up'").fetchone()[0]
+        storage_bytes = conn.execute("select coalesce(sum(image_size), 0) from records").fetchone()[0]
     return {
         "record_count": record_count,
         "backup_count": len(list(BACKUP_DIR.glob("records-*.sqlite3"))),
         "latest_record_at": latest[0] if latest else None,
         "active_model": active_model_path.name,
+        "reviewed_count": reviewed_count,
+        "follow_up_count": follow_up_count,
+        "storage_bytes": storage_bytes,
+        "session_ttl_minutes": SESSION_TTL_SECONDS // 60,
+        "max_upload_bytes": MAX_UPLOAD_BYTES,
     }
 
 

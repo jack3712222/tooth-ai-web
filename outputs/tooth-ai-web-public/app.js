@@ -264,6 +264,28 @@ const els = {
   adminModelHint: document.querySelector("#adminModelHint"),
   adminRecordTableBody: document.querySelector("#adminRecordTableBody"),
   refreshAdminRecordsBtn: document.querySelector("#refreshAdminRecordsBtn"),
+  exportAdminRecordsBtn: document.querySelector("#exportAdminRecordsBtn"),
+  adminRecordSearch: document.querySelector("#adminRecordSearch"),
+  adminRecordStatusFilter: document.querySelector("#adminRecordStatusFilter"),
+  adminRecordSort: document.querySelector("#adminRecordSort"),
+  adminReviewedCount: document.querySelector("#adminReviewedCount"),
+  adminFollowUpCount: document.querySelector("#adminFollowUpCount"),
+  createBackupBtn: document.querySelector("#createBackupBtn"),
+  adminBackupHint: document.querySelector("#adminBackupHint"),
+  backupList: document.querySelector("#backupList"),
+  refreshSecurityBtn: document.querySelector("#refreshSecurityBtn"),
+  securityStatusList: document.querySelector("#securityStatusList"),
+  adminRecordModal: document.querySelector("#adminRecordModal"),
+  closeAdminRecordModalBtn: document.querySelector("#closeAdminRecordModalBtn"),
+  adminRecordModalTitle: document.querySelector("#adminRecordModalTitle"),
+  adminRecordImage: document.querySelector("#adminRecordImage"),
+  adminRecordDetails: document.querySelector("#adminRecordDetails"),
+  adminReviewForm: document.querySelector("#adminReviewForm"),
+  adminReviewCavity: document.querySelector("#adminReviewCavity"),
+  adminReviewWisdom: document.querySelector("#adminReviewWisdom"),
+  adminReviewStatus: document.querySelector("#adminReviewStatus"),
+  adminReviewNote: document.querySelector("#adminReviewNote"),
+  saveAdminReviewBtn: document.querySelector("#saveAdminReviewBtn"),
   auditTableBody: document.querySelector("#auditTableBody"),
   refreshAdminBtn: document.querySelector("#refreshAdminBtn"),
 };
@@ -283,6 +305,9 @@ let appliedMetricKey = "map50";
 let appliedChartMode = "ranking";
 const dentexRecords = Array.isArray(window.dentexRecords) ? window.dentexRecords : [];
 const localImageUrls = new Map();
+let adminRecordsCache = [];
+let activeAdminRecord = null;
+let activeAdminImageUrl = null;
 
 const metricConfigs = {
   map50: { label: "mAP@50", better: "higher", digits: 4 },
@@ -890,7 +915,28 @@ function renderAdminRecords(records) {
     els.adminRecordTableBody.appendChild(row);
     return;
   }
-  records.forEach((record) => {
+  const query = (els.adminRecordSearch?.value || "").trim().toLowerCase();
+  const status = els.adminRecordStatusFilter?.value || "all";
+  const sort = els.adminRecordSort?.value || "newest";
+  const filtered = records.filter((record) => {
+    const matchesQuery = !query || `${record.image_name || ""} ${record.id || ""}`.toLowerCase().includes(query);
+    return matchesQuery && (status === "all" || (record.review_status || "pending") === status);
+  }).sort((a, b) => {
+    if (sort === "oldest") return Number(a.created_at) - Number(b.created_at);
+    if (sort === "findings") return Number(b.findings?.total || 0) - Number(a.findings?.total || 0);
+    if (sort === "review") return String(a.review_status || "pending").localeCompare(String(b.review_status || "pending"));
+    return Number(b.created_at) - Number(a.created_at);
+  });
+  if (!filtered.length) {
+    const row = document.createElement("tr");
+    const cell = document.createElement("td");
+    cell.colSpan = 6;
+    cell.textContent = "沒有符合目前篩選條件的影像案件。";
+    row.appendChild(cell);
+    els.adminRecordTableBody.appendChild(row);
+    return;
+  }
+  filtered.forEach((record) => {
     const row = document.createElement("tr");
     row.dataset.recordId = record.id;
 
@@ -922,17 +968,28 @@ function renderAdminRecords(records) {
     boxesCell.appendChild(boxList);
     row.appendChild(boxesCell);
 
-    const inferenceCell = document.createElement("td");
-    inferenceCell.textContent = `${Math.round(Number(record.inference_ms || 0))} ms`;
-    row.appendChild(inferenceCell);
+    const reviewCell = document.createElement("td");
+    const reviewTag = document.createElement("span");
+    const reviewStatus = record.review_status || "pending";
+    reviewTag.className = `review-status ${reviewStatus}`;
+    reviewTag.textContent = ({ pending: "待覆核", reviewed: "已覆核", needs_follow_up: "待追蹤" })[reviewStatus] || "待覆核";
+    const reviewMeta = document.createElement("small");
+    reviewMeta.textContent = record.reviewed_at ? `更新：${formatAdminTime(record.reviewed_at)}` : `推論：${Math.round(Number(record.inference_ms || 0))} ms`;
+    reviewCell.append(reviewTag, reviewMeta);
+    row.appendChild(reviewCell);
 
     const actionCell = document.createElement("td");
+    const viewButton = document.createElement("button");
+    viewButton.type = "button";
+    viewButton.className = "small-action";
+    viewButton.dataset.adminRecordAction = "view";
+    viewButton.textContent = "查看／覆核";
     const deleteButton = document.createElement("button");
     deleteButton.type = "button";
     deleteButton.className = "small-action danger";
     deleteButton.dataset.adminRecordAction = "delete";
     deleteButton.textContent = "刪除";
-    actionCell.append(deleteButton);
+    actionCell.append(viewButton, deleteButton);
     row.appendChild(actionCell);
 
     els.adminRecordTableBody.appendChild(row);
@@ -944,7 +1001,8 @@ async function loadAdminRecords() {
   try {
     const response = await fetch(`${localApiBase}/records`, { headers: editorHeaders() });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    renderAdminRecords(await response.json());
+    adminRecordsCache = await response.json();
+    renderAdminRecords(adminRecordsCache);
   } catch (error) {
     if (els.adminRecordTableBody) {
       els.adminRecordTableBody.replaceChildren();
@@ -957,6 +1015,88 @@ async function loadAdminRecords() {
     }
     appendLog(`[admin] records failed: ${error.message}`);
   }
+}
+
+function closeAdminRecordModal() {
+  if (activeAdminImageUrl) URL.revokeObjectURL(activeAdminImageUrl);
+  activeAdminImageUrl = null;
+  activeAdminRecord = null;
+  els.adminRecordModal?.classList.remove("show");
+  els.adminRecordModal?.setAttribute("aria-hidden", "true");
+}
+
+async function openAdminRecordModal(recordId) {
+  const record = adminRecordsCache.find((item) => item.id === recordId);
+  if (!record || !editorToken()) return;
+  activeAdminRecord = record;
+  if (els.adminRecordModalTitle) els.adminRecordModalTitle.textContent = record.image_name || "影像案件";
+  if (els.adminRecordDetails) {
+    els.adminRecordDetails.replaceChildren();
+    const details = [
+      ["案件編號", record.id], ["建立時間", formatAdminTime(record.created_at)],
+      ["模型輸出", adminDiseaseSummary({ ...record, findings: record.model_findings })],
+      ["推論時間", `${Math.round(Number(record.inference_ms || 0))} ms`],
+    ];
+    details.forEach(([label, value]) => {
+      const item = document.createElement("div");
+      const name = document.createElement("span"); name.textContent = label;
+      const content = document.createElement("strong"); content.textContent = value;
+      item.append(name, content); els.adminRecordDetails.appendChild(item);
+    });
+  }
+  const findings = adminFindingsFromRecord(record);
+  if (els.adminReviewCavity) els.adminReviewCavity.value = String(findings.cavity.count);
+  if (els.adminReviewWisdom) els.adminReviewWisdom.value = String(findings.wisdom_tooth.count);
+  if (els.adminReviewStatus) els.adminReviewStatus.value = record.review_status || "pending";
+  if (els.adminReviewNote) els.adminReviewNote.value = record.review_note || "";
+  if (els.adminRecordImage) {
+    els.adminRecordImage.removeAttribute("src");
+    const response = await fetch(`${localApiBase}/records/${record.id}/image`, { headers: editorHeaders() });
+    if (response.ok) {
+      activeAdminImageUrl = URL.createObjectURL(await response.blob());
+      els.adminRecordImage.src = activeAdminImageUrl;
+    }
+  }
+  els.adminRecordModal?.classList.add("show");
+  els.adminRecordModal?.setAttribute("aria-hidden", "false");
+}
+
+async function saveAdminReview(event) {
+  event.preventDefault();
+  if (!activeAdminRecord || !editorToken()) return;
+  const payload = {
+    cavity_count: Number(els.adminReviewCavity?.value || 0),
+    wisdom_tooth_count: Number(els.adminReviewWisdom?.value || 0),
+    review_status: els.adminReviewStatus?.value || "pending",
+    note: els.adminReviewNote?.value.trim() || "",
+  };
+  if (els.saveAdminReviewBtn) els.saveAdminReviewBtn.disabled = true;
+  try {
+    const response = await fetch(`${localApiBase}/records/${activeAdminRecord.id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json", ...editorHeaders() }, body: JSON.stringify(payload),
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    appendLog(`[admin] reviewed record=${activeAdminRecord.id}`);
+    closeAdminRecordModal();
+    await loadAdminRecords();
+    await loadAdminDashboard();
+  } catch (error) {
+    window.alert("覆核儲存失敗，請確認本機 API 已啟動且登入未逾期。");
+    appendLog(`[admin] review failed: ${error.message}`);
+  } finally {
+    if (els.saveAdminReviewBtn) els.saveAdminReviewBtn.disabled = false;
+  }
+}
+
+function exportAdminRecords() {
+  const rows = adminRecordsCache.map((record) => ({
+    id: record.id, image_name: record.image_name, created_at: formatAdminTime(record.created_at),
+    findings: adminDiseaseSummary(record), review_status: record.review_status || "pending",
+    review_note: record.review_note || "", inference_ms: Math.round(Number(record.inference_ms || 0)),
+  }));
+  const blob = new Blob([JSON.stringify(rows, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob); const link = document.createElement("a");
+  link.href = url; link.download = `tooth-ai-case-records-${new Date().toISOString().slice(0, 10)}.json`; link.click(); URL.revokeObjectURL(url);
 }
 
 async function deleteAdminRecord(row) {
@@ -977,9 +1117,13 @@ async function handleAdminRecordAction(event) {
   const row = button.closest("tr");
   button.disabled = true;
   try {
-    if (button.dataset.adminRecordAction === "delete") await deleteAdminRecord(row);
-    await loadAdminRecords();
-    await loadAdminDashboard();
+    if (button.dataset.adminRecordAction === "view") {
+      await openAdminRecordModal(row?.dataset.recordId);
+    } else if (button.dataset.adminRecordAction === "delete") {
+      await deleteAdminRecord(row);
+      await loadAdminRecords();
+      await loadAdminDashboard();
+    }
   } catch (error) {
     appendLog(`[admin] record action failed: ${error.message}`);
     window.alert("後台紀錄操作失敗，請確認 API 連線與登入狀態。");
@@ -1020,17 +1164,23 @@ async function applyActiveModel(modelOverride) {
 async function loadAdminDashboard() {
   if (!editorToken()) return;
   try {
-    const [summaryResponse, auditResponse] = await Promise.all([
+    const [summaryResponse, auditResponse, backupsResponse] = await Promise.all([
       fetch(`${localApiBase}/admin/summary`, { headers: editorHeaders() }),
       fetch(`${localApiBase}/audit`, { headers: editorHeaders() }),
+      fetch(`${localApiBase}/backups`, { headers: editorHeaders() }),
     ]);
-    if (!summaryResponse.ok || !auditResponse.ok) throw new Error("admin request failed");
+    if (!summaryResponse.ok || !auditResponse.ok || !backupsResponse.ok) throw new Error("admin request failed");
     const summary = await summaryResponse.json();
     const auditRows = await auditResponse.json();
+    const backups = await backupsResponse.json();
     if (els.adminRecordCount) els.adminRecordCount.textContent = String(summary.record_count || 0);
     if (els.adminBackupCount) els.adminBackupCount.textContent = String(summary.backup_count || 0);
     if (els.adminActiveModel) els.adminActiveModel.textContent = summary.active_model || "--";
+    if (els.adminReviewedCount) els.adminReviewedCount.textContent = String(summary.reviewed_count || 0);
+    if (els.adminFollowUpCount) els.adminFollowUpCount.textContent = String(summary.follow_up_count || 0);
     if (els.adminLatestRecord) els.adminLatestRecord.textContent = `最後儲存：${formatAdminTime(summary.latest_record_at)}`;
+    renderBackupList(backups);
+    renderSecurityStatus(summary);
     if (els.auditTableBody) {
       els.auditTableBody.replaceChildren();
       if (!auditRows.length) {
@@ -1054,6 +1204,56 @@ async function loadAdminDashboard() {
     }
   } catch (error) {
     appendLog(`[admin] load failed: ${error.message}`);
+  }
+}
+
+function formatBytes(value) {
+  const bytes = Number(value || 0);
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function renderBackupList(backups) {
+  if (els.adminBackupHint) els.adminBackupHint.textContent = backups.length ? `保留最近 ${backups.length} 份資料庫備份。` : "尚未建立備份，首次儲存或手動建立後會出現。";
+  if (!els.backupList) return;
+  els.backupList.replaceChildren();
+  backups.slice(0, 5).forEach((backup) => {
+    const item = document.createElement("div"); item.className = "backup-item";
+    const name = document.createElement("strong"); name.textContent = backup.name;
+    const meta = document.createElement("small"); meta.textContent = `${formatAdminTime(backup.created_at)} ・ ${formatBytes(backup.size)}`;
+    item.append(name, meta); els.backupList.appendChild(item);
+  });
+}
+
+function renderSecurityStatus(summary) {
+  if (!els.securityStatusList) return;
+  const apiState = localApiOnline ? "已連線（本機）" : "未連線";
+  const values = [
+    ["登入工作階段", `${summary.session_ttl_minutes || "--"} 分鐘`],
+    ["上傳上限", formatBytes(summary.max_upload_bytes)],
+    ["資料庫影像容量", formatBytes(summary.storage_bytes)],
+    ["API 狀態", apiState],
+  ];
+  els.securityStatusList.replaceChildren();
+  values.forEach(([label, value]) => {
+    const item = document.createElement("div"); const key = document.createElement("dt"); const data = document.createElement("dd");
+    key.textContent = label; data.textContent = value; item.append(key, data); els.securityStatusList.appendChild(item);
+  });
+}
+
+async function createAdminBackup() {
+  if (!editorToken()) return;
+  if (els.createBackupBtn) els.createBackupBtn.disabled = true;
+  try {
+    const response = await fetch(`${localApiBase}/backups`, { method: "POST", headers: editorHeaders() });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    appendLog("[admin] manual backup created");
+    await loadAdminDashboard();
+  } catch (error) {
+    window.alert("備份建立失敗，請確認本機 API 已啟動。");
+    appendLog(`[admin] backup failed: ${error.message}`);
+  } finally {
+    if (els.createBackupBtn) els.createBackupBtn.disabled = false;
   }
 }
 
@@ -1862,13 +2062,6 @@ function saveDemoRecord() {
   setDemoRecords([record, ...getDemoRecords()]);
   renderDemoRecords();
   appendLog(`[record] saved image=${record.imageName} prediction=${record.prediction} confidence=${record.confidence}%`);
-  if (lastApiRecordId && editorToken()) {
-    fetch(`${localApiBase}/records/${lastApiRecordId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json", ...editorHeaders() },
-      body: JSON.stringify({ prediction: selectedDemo === "蛀牙" ? "cavity" : "wisdom_tooth", confidence: currentConfidence / 100 }),
-    }).catch(() => appendLog("[record] backend annotation sync failed"));
-  }
 }
 
 function downloadDemoRecords() {
@@ -2148,6 +2341,17 @@ els.adminApplyModelBtn?.addEventListener("click", () => applyActiveModel(els.adm
 els.refreshAdminBtn?.addEventListener("click", loadAdminDashboard);
 els.refreshAdminRecordsBtn?.addEventListener("click", loadAdminRecords);
 els.adminRecordTableBody?.addEventListener("click", handleAdminRecordAction);
+els.adminRecordSearch?.addEventListener("input", () => renderAdminRecords(adminRecordsCache));
+els.adminRecordStatusFilter?.addEventListener("change", () => renderAdminRecords(adminRecordsCache));
+els.adminRecordSort?.addEventListener("change", () => renderAdminRecords(adminRecordsCache));
+els.exportAdminRecordsBtn?.addEventListener("click", exportAdminRecords);
+els.createBackupBtn?.addEventListener("click", createAdminBackup);
+els.refreshSecurityBtn?.addEventListener("click", loadAdminDashboard);
+els.closeAdminRecordModalBtn?.addEventListener("click", closeAdminRecordModal);
+els.adminReviewForm?.addEventListener("submit", saveAdminReview);
+els.adminRecordModal?.addEventListener("click", (event) => {
+  if (event.target === els.adminRecordModal) closeAdminRecordModal();
+});
 els.archSimpleBtn?.addEventListener("click", () => setArchitectureMode("simple"));
 els.archFullBtn?.addEventListener("click", () => setArchitectureMode("full"));
 els.expandParamBtn?.addEventListener("click", () => setParamGroups(true));
