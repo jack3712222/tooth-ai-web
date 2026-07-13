@@ -755,12 +755,12 @@ function setAccessMode(mode) {
   els.visitorModeBtn?.classList.toggle("active", !editorEnabled);
   els.editorModeBtn?.classList.toggle("active", editorEnabled);
   if (els.accessModeLabel) {
-    els.accessModeLabel.textContent = editorEnabled ? "目前：編輯模式" : "目前：訪客模式";
+    els.accessModeLabel.textContent = editorEnabled ? "管理已連線" : "展示狀態";
     els.accessModeLabel.classList.toggle("editor", editorEnabled);
     els.accessModeLabel.classList.toggle("visitor", !editorEnabled);
   }
-  if (els.editorModeBtn) els.editorModeBtn.textContent = editorEnabled ? "編輯中" : "登入編輯";
-  if (els.saveDemoBtn) els.saveDemoBtn.textContent = editorEnabled ? "儲存到後台" : "儲存到此瀏覽器";
+  if (els.editorModeBtn) els.editorModeBtn.textContent = editorEnabled ? "管理中" : "管理登入";
+  if (els.saveDemoBtn) els.saveDemoBtn.textContent = editorEnabled ? "同步到後台" : "儲存照片資訊";
   if (editorEnabled) {
     loadModelManagement();
     loadAdminDashboard();
@@ -872,11 +872,11 @@ async function loadAdminDashboard() {
 function openAuthModal() {
   if (!localApiOnline) {
     if (els.authModal) {
-      if (els.authError) els.authError.textContent = "請先啟動本機 API，後台與模型管理才有資料可連線。";
+      if (els.authError) els.authError.textContent = "請先啟動本機 API，管理功能才能連線。";
       els.authModal.classList.add("show");
       els.authModal.setAttribute("aria-hidden", "false");
     } else {
-      window.alert("請先啟動本機 API，後台與模型管理才有資料可連線。");
+      window.alert("請先啟動本機 API，管理功能才能連線。");
     }
     return;
   }

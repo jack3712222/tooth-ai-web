@@ -10,7 +10,7 @@
     />
     <meta name="referrer" content="no-referrer" />
     <title>牙齒 AI 檢測平台</title>
-    <link rel="stylesheet" href="./styles.css?v=20260713-human" />
+    <link rel="stylesheet" href="./styles.css?v=20260713-polish" />
   </head>
   <body>
     <header class="sidebar">
@@ -117,25 +117,25 @@
           <span id="slicerBridgeStatus" class="runtime-pill online">2D 檢視器：已就緒</span>
         </div>
         <div class="strip-actions">
-          <span id="accessModeLabel" class="access-mode-label visitor">目前：訪客模式</span>
+          <span id="accessModeLabel" class="access-mode-label visitor">展示狀態</span>
           <button id="checkSystemBtn" type="button">連線本機模型</button>
           <button id="jumpDemoBtn">快速 Demo</button>
           <button id="exportReportBtn">匯出結果 JSON</button>
-          <button id="visitorModeBtn" type="button">訪客模式</button>
-          <button id="editorModeBtn" type="button">登入編輯</button>
+          <button id="visitorModeBtn" type="button">展示檢視</button>
+          <button id="editorModeBtn" type="button">管理登入</button>
         </div>
       </section>
 
-      <section class="mode-guide tab-page active" data-tab-page="overview" aria-label="使用模式說明">
+      <section class="mode-guide tab-page active" data-tab-page="overview" aria-label="系統狀態">
         <article>
-          <span>訪客模式</span>
-          <strong>可以看資料、看結果、上傳 X-ray 做 Demo</strong>
-          <small>推論需要本機 API；Demo 紀錄只存在目前瀏覽器，不會寫入後台。</small>
+          <span>資料與實驗</span>
+          <strong>DENTEX 影像資料、72 組超參數搜尋結果已載入</strong>
+          <small>可檢視資料分布、模型設定、各項指標排名與完整實驗表格。</small>
         </article>
         <article>
-          <span>編輯模式</span>
-          <strong>用來管理模型、修正結果、查看後台紀錄</strong>
-          <small>登入後才會出現「後台」與「模型管理」，也能把推論紀錄寫進本機資料庫。</small>
+          <span>推論服務</span>
+          <strong>支援本機 YOLOv8m API 與 2D OPG 檢視畫面</strong>
+          <small>連線後可上傳 X-ray、顯示偵測框、保存照片資訊與推論紀錄。</small>
         </article>
       </section>
 
@@ -344,10 +344,10 @@
         <div class="panel model-management editor-only" hidden>
           <div class="panel-title-row">
             <div>
-              <p class="eyebrow">Editor Only</p>
+              <p class="eyebrow">Model Control</p>
               <h3>模型管理</h3>
             </div>
-            <span class="tag fixed">編輯模式</span>
+            <span class="tag fixed">管理功能</span>
           </div>
           <div class="model-management-controls">
             <label>目前模型
@@ -355,7 +355,7 @@
             </label>
             <button id="applyModelBtn" type="button" disabled>套用模型</button>
           </div>
-          <p id="modelManagementHint" class="notice">登入後可選擇本機 models 資料夾內已註冊的 .pt 模型。</p>
+          <p id="modelManagementHint" class="notice">可選擇本機 models 資料夾內已註冊的 .pt 模型。</p>
         </div>
         <div class="panel hyper-panel">
           <h3>調整的超參數範圍</h3>
@@ -736,7 +736,7 @@
             </div>
             <button id="predictBtn" class="primary full" type="button" disabled>使用本機模型推論</button>
             <p id="localInferenceHelp" class="notice">請先在本機啟動 API，再按「連線本機模型」。模型與影像不會上傳雲端。</p>
-            <p class="visitor-note">訪客也可以使用 Demo。只有「修改結果、切換模型、後台紀錄」需要登入編輯模式。</p>
+            <p class="visitor-note">Demo 可直接上傳 X-ray 測試；模型切換、結果修正與後台紀錄由管理功能處理。</p>
           </div>
           <div class="panel demo-output">
             <h3>推論結果</h3>
@@ -747,7 +747,7 @@
             </div>
             <div class="prob-list" id="probList"></div>
             <div class="edit-result-panel">
-              <h4>修改結果 <span>編輯模式</span></h4>
+              <h4>修改結果 <span>管理</span></h4>
               <div class="edit-controls">
                 <label>Prediction
                   <select id="manualPredictionInput">
@@ -812,7 +812,7 @@
           </div>
           <div class="panel image-info-panel">
             <h3>照片與推論資訊</h3>
-            <p class="visitor-note">訪客儲存會保留在本瀏覽器；登入編輯後儲存，才會同步到本機後台。</p>
+            <p class="visitor-note">照片資訊會先保留在目前瀏覽器；連線管理後可同步到本機後台。</p>
             <dl class="kv compact">
               <div><dt>Image Name</dt><dd id="imageNameValue">sample-cavity.png</dd></div>
               <div><dt>Image Type</dt><dd id="imageTypeValue">demo sample</dd></div>
@@ -842,10 +842,10 @@
         <div class="section-head">
           <p class="eyebrow">Administration</p>
           <h2>後台管理</h2>
-          <p>後台只在編輯模式顯示，用來看本機 API 的推論紀錄、自動備份、目前使用模型與操作紀錄。</p>
+          <p>集中查看本機 API 推論紀錄、自動備份、目前使用模型與操作紀錄。</p>
         </div>
         <div class="admin-summary-grid">
-          <article class="panel"><span>已儲存推論</span><strong id="adminRecordCount">--</strong><small>僅編輯模式儲存</small></article>
+          <article class="panel"><span>已儲存推論</span><strong id="adminRecordCount">--</strong><small>後台資料庫紀錄</small></article>
           <article class="panel"><span>自動備份</span><strong id="adminBackupCount">--</strong><small>最近 20 份資料庫備份</small></article>
           <article class="panel"><span>目前模型</span><strong id="adminActiveModel">--</strong><small id="adminLatestRecord">尚無儲存紀錄</small></article>
         </div>
@@ -856,7 +856,7 @@
           </div>
           <table>
             <thead><tr><th>時間</th><th>帳號</th><th>操作</th><th>項目</th></tr></thead>
-            <tbody id="auditTableBody"><tr><td colspan="4">登入編輯模式後載入。</td></tr></tbody>
+            <tbody id="auditTableBody"><tr><td colspan="4">等待管理資料載入。</td></tr></tbody>
           </table>
         </div>
       </section>
@@ -884,8 +884,8 @@
         <div class="modal-card auth-modal-card" role="dialog" aria-modal="true" aria-labelledby="authModalTitle">
           <button id="closeAuthModalBtn" class="modal-close" type="button" aria-label="關閉">×</button>
           <p class="eyebrow">Editor Access</p>
-          <h2 id="authModalTitle">登入編輯模式</h2>
-          <p class="modal-note">編輯模式可使用本機模型推論、修改結果與管理本機紀錄。</p>
+          <h2 id="authModalTitle">管理登入</h2>
+          <p class="modal-note">登入後可管理模型、修正推論結果並查看本機紀錄。</p>
           <form id="authForm" class="auth-form">
             <label>帳號
               <input id="authUsernameInput" name="username" type="text" autocomplete="username" required />
@@ -915,6 +915,6 @@
     </main>
 
     <script src="./data-records.js?v=20260707-photos"></script>
-    <script src="./app.js?v=20260713-human"></script>
+    <script src="./app.js?v=20260713-polish"></script>
   </body>
 </html>
