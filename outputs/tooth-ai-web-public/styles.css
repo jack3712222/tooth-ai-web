@@ -1672,6 +1672,24 @@ th {
   align-items: center;
 }
 
+.prob-item.summary {
+  grid-template-columns: minmax(80px, .8fr) minmax(150px, 1.4fr) minmax(120px, 1fr);
+  padding: 12px;
+  background: #ffffff;
+  border: 1px solid #d9e3ef;
+  border-radius: 8px;
+}
+
+.prob-item.summary span {
+  color: #53657d;
+}
+
+.prob-item.summary b {
+  color: #0f766e;
+  font-weight: 900;
+  text-align: right;
+}
+
 .prob-track {
   height: 10px;
   background: #e9eef4;
@@ -2739,11 +2757,16 @@ input:disabled {
 
   .combo-score-grid,
   .class-score-bars > div,
+  .prob-item.summary,
   .modal-grid,
   .model-fact-grid,
   .model-detail-grid,
   .full-architecture {
     grid-template-columns: 1fr;
+  }
+
+  .prob-item.summary b {
+    text-align: left;
   }
 
   .panel-title-row {

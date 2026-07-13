@@ -1577,7 +1577,48 @@ function resetTraining() {
   updateTrainingUi();
 }
 
-function renderProbabilities(profile) {
+function detectionClassLabel(value) {
+  return value === "wisdom_tooth" ? "阻生智齒" : "蛀牙";
+}
+
+function renderProbabilities() {
+  els.probList.replaceChildren();
+  const boxes = Array.isArray(currentPredictionBoxes) ? currentPredictionBoxes : [];
+  if (boxes.length) {
+    const groups = labels.map((label) => {
+      const apiClass = label === "阻生智齒" ? "wisdom_tooth" : "cavity";
+      const matched = boxes.filter((box) => box.class === apiClass);
+      const maxConfidence = matched.reduce((max, box) => Math.max(max, Number(box.confidence) || 0), 0);
+      return { label, count: matched.length, maxConfidence };
+    }).filter((item) => item.count > 0);
+    groups.forEach((group) => {
+      const item = document.createElement("div");
+      item.className = "prob-item summary";
+      const labelNode = document.createElement("strong");
+      labelNode.textContent = group.label;
+      const detailNode = document.createElement("span");
+      detailNode.textContent = `${group.count} 個偵測框`;
+      const valueNode = document.createElement("b");
+      valueNode.textContent = `最高信心 ${(group.maxConfidence * 100).toFixed(1)}%`;
+      item.append(labelNode, detailNode, valueNode);
+      els.probList.appendChild(item);
+    });
+    return;
+  }
+
+  const item = document.createElement("div");
+  item.className = "prob-item summary";
+  const labelNode = document.createElement("strong");
+  labelNode.textContent = currentConfidence > 0 ? selectedDemo : "尚未推論";
+  const detailNode = document.createElement("span");
+  detailNode.textContent = currentConfidence > 0 ? "人工修改或 API 回傳結果" : "上傳影像並連線本機模型後才會產生偵測框";
+  const valueNode = document.createElement("b");
+  valueNode.textContent = currentConfidence > 0 ? `偵測信心 ${currentConfidence}%` : "--";
+  item.append(labelNode, detailNode, valueNode);
+  els.probList.appendChild(item);
+}
+
+function renderLegacyProbabilities(profile) {
   els.probList.replaceChildren();
   labels.forEach((label, index) => {
     const value = profile[index];
@@ -1668,8 +1709,7 @@ function renderDetectionBoxes() {
     marker.style.width = `${((x2 - x1) / width) * 100}%`;
     marker.style.height = `${((y2 - y1) / height) * 100}%`;
     const label = document.createElement("span");
-    const className = box.class === "wisdom_tooth" ? "wisdom_tooth" : "cavity";
-    label.textContent = `${className} ${(Number(box.confidence) * 100).toFixed(1)}%`;
+    label.textContent = `${detectionClassLabel(box.class)} ${(Number(box.confidence) * 100).toFixed(1)}%`;
     marker.appendChild(label);
     els.detectionOverlay.appendChild(marker);
   });
@@ -1686,20 +1726,10 @@ function setPendingSelection(label) {
   if (els.topResult) els.topResult.textContent = selectedDemo;
   if (els.manualPredictionInput) els.manualPredictionInput.value = selectedDemo;
   if (els.manualConfidenceInput) els.manualConfidenceInput.value = "0";
-  renderProbabilities([0, 0]);
+  currentPredictionBoxes = [];
+  renderProbabilities();
   updateImageInfoUi();
   updateSlicerViewer(selectedDemo, 0, "人工標註預覽");
-  return;
-  els.predictionValue.textContent = selectedDemo;
-  els.confidenceValue.textContent = "等待模型推論";
-  els.heroPrediction.textContent = selectedDemo;
-  els.heroConfidence.textContent = "等待模型推論";
-  if (els.topResult) els.topResult.textContent = selectedDemo;
-  if (els.manualPredictionInput) els.manualPredictionInput.value = selectedDemo;
-  if (els.manualConfidenceInput) els.manualConfidenceInput.value = "0";
-  renderProbabilities([0, 0]);
-  updateImageInfoUi();
-  updateSlicerViewer(selectedDemo, 0, "待推論");
 }
 
 function getDemoRecords() {
@@ -1791,11 +1821,10 @@ function setPrediction(label, animated = false) {
   const baseProfile = predictionProfiles[label];
   const max = animated ? currentConfidence : Math.max(...baseProfile);
   currentConfidence = animated ? currentConfidence : max;
-  const profile = animated ? profileFromEditedResult(label, currentConfidence) : baseProfile;
   els.predictionValue.textContent = animated ? "Analyzing..." : label;
-  els.confidenceValue.textContent = animated ? "Confidence --" : `Confidence ${max}%`;
+  els.confidenceValue.textContent = animated ? "偵測信心 --" : `偵測信心 ${max}%`;
   els.heroPrediction.textContent = label;
-  els.heroConfidence.textContent = `Confidence ${max}%`;
+  els.heroConfidence.textContent = animated ? "推論中" : `偵測信心 ${max}%`;
   if (els.topResult) els.topResult.textContent = label;
   if (els.manualPredictionInput) els.manualPredictionInput.value = label;
   if (els.manualConfidenceInput) els.manualConfidenceInput.value = String(max);
@@ -1807,7 +1836,8 @@ function setPrediction(label, animated = false) {
     };
     els.explainText.textContent = notes[label];
   }
-  renderProbabilities(profile);
+  if (!animated) currentPredictionBoxes = [];
+  renderProbabilities();
   els.pipelineResult.textContent = animated ? "Running" : "Output";
   updateImageInfoUi();
   updateSlicerViewer(label, max, animated ? "推論中" : "已完成");
@@ -1865,13 +1895,12 @@ async function runApiPrediction(apiBase, file) {
 function applyResultToUi(label, confidence, status = "已完成") {
   selectedDemo = normalizePredictionLabel(label);
   currentConfidence = clampConfidence(confidence);
-  const profile = profileFromEditedResult(selectedDemo, currentConfidence);
   els.predictionValue.textContent = selectedDemo;
-  els.confidenceValue.textContent = selectedDemo === "未偵測到目標" ? "未偵測到目標" : `Confidence ${currentConfidence}%`;
+  els.confidenceValue.textContent = selectedDemo === "未偵測到目標" ? "未偵測到目標" : `偵測信心 ${currentConfidence}%`;
   els.heroPrediction.textContent = selectedDemo;
-  els.heroConfidence.textContent = selectedDemo === "未偵測到目標" ? "No target detected" : `Confidence ${currentConfidence}%`;
+  els.heroConfidence.textContent = selectedDemo === "未偵測到目標" ? "未偵測到目標" : `偵測信心 ${currentConfidence}%`;
   if (els.topResult) els.topResult.textContent = selectedDemo;
-  renderProbabilities(profile);
+  renderProbabilities();
   updateImageInfoUi();
   updateSlicerViewer(selectedDemo, currentConfidence, status);
 }

@@ -10,7 +10,7 @@
     />
     <meta name="referrer" content="no-referrer" />
     <title>牙齒 AI 檢測平台</title>
-    <link rel="stylesheet" href="./styles.css?v=20260713-admin" />
+    <link rel="stylesheet" href="./styles.css?v=20260713-demo-ui" />
   </head>
   <body>
     <header class="sidebar">
@@ -741,7 +741,7 @@
           <div class="panel demo-output">
             <h3>推論結果</h3>
             <div class="result-main">
-              <span>Prediction</span>
+              <span>主要偵測結果</span>
               <strong id="predictionValue">蛀牙</strong>
               <small id="confidenceValue">等待模型推論</small>
             </div>
@@ -749,13 +749,13 @@
             <div class="edit-result-panel">
               <h4>修改結果 <span>管理</span></h4>
               <div class="edit-controls">
-                <label>Prediction
+                <label>主要結果
                   <select id="manualPredictionInput">
                     <option>蛀牙</option>
                     <option>阻生智齒</option>
                   </select>
                 </label>
-                <label>Confidence
+                <label>偵測信心
                   <input id="manualConfidenceInput" type="number" min="0" max="100" step="1" value="0" />
                 </label>
                 <button id="applyEditBtn">套用修改</button>
@@ -779,9 +779,9 @@
             <div class="report-box">
               <h4>Demo 報告</h4>
               <dl class="kv compact">
-                <div><dt>Inference Time</dt><dd id="inferenceTime">-- ms</dd></div>
-                <div><dt>Input Size</dt><dd>1280</dd></div>
-              <div><dt>Top Detection</dt><dd id="topResult">蛀牙</dd></div>
+                <div><dt>推論時間</dt><dd id="inferenceTime">-- ms</dd></div>
+                <div><dt>輸入尺寸</dt><dd>1280</dd></div>
+              <div><dt>最高信心類別</dt><dd id="topResult">蛀牙</dd></div>
               </dl>
             </div>
           </div>
@@ -797,10 +797,10 @@
             </div>
             <div class="slicer-viewer" aria-label="2D dental X-ray medical image viewer">
               <div class="slicer-toolbar">
-                <span>OPG</span>
-                <span>Detection Overlay</span>
-                <span>cavity</span>
-                <span>wisdom_tooth</span>
+                <span>OPG 原圖</span>
+                <span>偵測框疊圖</span>
+                <span>蛀牙框</span>
+                <span>阻生智齒框</span>
               </div>
               <div id="slicerScene" class="slicer-scene">
                 <div id="medicalViewerPlaceholder" class="medical-viewer-placeholder">上傳 OPG X-ray 後，在此顯示原圖與偵測框。</div>
@@ -814,12 +814,12 @@
             <h3>照片與推論資訊</h3>
             <p class="visitor-note">照片資訊會先保留在目前瀏覽器；連線管理後可同步到本機後台。</p>
             <dl class="kv compact">
-              <div><dt>Image Name</dt><dd id="imageNameValue">sample-cavity.png</dd></div>
-              <div><dt>Image Type</dt><dd id="imageTypeValue">demo sample</dd></div>
-              <div><dt>Image Size</dt><dd id="imageSizeValue">--</dd></div>
-              <div><dt>Prediction</dt><dd id="savedPredictionValue">蛀牙</dd></div>
-              <div><dt>Confidence</dt><dd id="savedConfidenceValue">--</dd></div>
-              <div><dt>Saved Records</dt><dd id="recordCountValue">0</dd></div>
+              <div><dt>影像檔名</dt><dd id="imageNameValue">sample-cavity.png</dd></div>
+              <div><dt>影像來源</dt><dd id="imageTypeValue">demo sample</dd></div>
+              <div><dt>影像大小</dt><dd id="imageSizeValue">--</dd></div>
+              <div><dt>主要結果</dt><dd id="savedPredictionValue">蛀牙</dd></div>
+              <div><dt>偵測信心</dt><dd id="savedConfidenceValue">--</dd></div>
+              <div><dt>儲存筆數</dt><dd id="recordCountValue">0</dd></div>
             </dl>
             <div class="record-actions">
               <button id="downloadRecordsBtn">下載 Demo 紀錄</button>
@@ -830,7 +830,7 @@
         <div class="panel records-panel">
           <h3>已儲存 Demo 紀錄</h3>
           <table>
-            <thead><tr><th>時間</th><th>照片</th><th>類型</th><th>Prediction</th><th>Confidence</th><th>Inference</th></tr></thead>
+            <thead><tr><th>時間</th><th>照片</th><th>類型</th><th>主要結果</th><th>偵測信心</th><th>推論時間</th></tr></thead>
             <tbody id="recordTableBody">
               <tr><td colspan="6">尚未儲存 Demo 紀錄</td></tr>
             </tbody>
@@ -869,7 +869,7 @@
           </div>
           <table class="admin-record-table">
             <thead>
-              <tr><th>時間</th><th>照片</th><th>Prediction</th><th>Confidence</th><th>Inference</th><th>操作</th></tr>
+              <tr><th>時間</th><th>照片</th><th>主要結果</th><th>偵測信心</th><th>推論時間</th><th>操作</th></tr>
             </thead>
             <tbody id="adminRecordTableBody"><tr><td colspan="6">等待紀錄載入。</td></tr></tbody>
           </table>
@@ -940,6 +940,6 @@
     </main>
 
     <script src="./data-records.js?v=20260707-photos"></script>
-    <script src="./app.js?v=20260713-admin"></script>
+    <script src="./app.js?v=20260713-demo-ui"></script>
   </body>
 </html>
