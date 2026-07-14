@@ -51,6 +51,10 @@ $temporaryImage = Join-Path $env:TEMP ("tooth-ai-api-test-" + [guid]::NewGuid().
 [IO.File]::WriteAllBytes($temporaryImage, [Convert]::FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="))
 
 try {
+  $guestRaw = & curl.exe -s -X POST "http://127.0.0.1:8000/predict" -F "file=@$temporaryImage;type=image/png"
+  $guestPrediction = $guestRaw | ConvertFrom-Json
+  if ($guestPrediction.id) { throw "Guest demo unexpectedly created a persistent record: $guestRaw" }
+
   $rawResult = & curl.exe -s -X POST "http://127.0.0.1:8000/predict" -H "Authorization: Bearer $($session.access_token)" -F "file=@$temporaryImage;type=image/png"
   $prediction = $rawResult | ConvertFrom-Json
   if (-not $prediction.id) { throw "Prediction did not create a record: $rawResult" }

@@ -163,12 +163,8 @@ const els = {
   modelModal: document.querySelector("#modelModal"),
   openModelModalBtn: document.querySelector("#openModelModalBtn"),
   closeModelModalBtn: document.querySelector("#closeModelModalBtn"),
-  archSimpleBtn: document.querySelector("#archSimpleBtn"),
-  archFullBtn: document.querySelector("#archFullBtn"),
   expandParamBtn: document.querySelector("#expandParamBtn"),
   collapseParamBtn: document.querySelector("#collapseParamBtn"),
-  simpleArch: document.querySelector("#simpleArch"),
-  fullArch: document.querySelector("#fullArch"),
   dataImageModal: document.querySelector("#dataImageModal"),
   dataImagePreview: document.querySelector("#dataImagePreview"),
   dataImageTitle: document.querySelector("#dataImageTitle"),
@@ -2322,8 +2318,6 @@ els.adminReviewForm?.addEventListener("submit", saveAdminReview);
 els.adminRecordModal?.addEventListener("click", (event) => {
   if (event.target === els.adminRecordModal) closeAdminRecordModal();
 });
-els.archSimpleBtn?.addEventListener("click", () => setArchitectureMode("simple"));
-els.archFullBtn?.addEventListener("click", () => setArchitectureMode("full"));
 els.expandParamBtn?.addEventListener("click", () => setParamGroups(true));
 els.collapseParamBtn?.addEventListener("click", () => setParamGroups(false));
 els.modelModal?.addEventListener("click", (event) => {
@@ -2419,6 +2413,3 @@ updateConfigSummary();
 renderComboResults();
 renderDataBrowser();
 checkSystemStatus();
-setArchitectureMode("simple");
-renderYoloArchitectureDiagrams();
-window.addEventListener("resize", () => window.requestAnimationFrame(renderYoloArchitectureDiagrams));

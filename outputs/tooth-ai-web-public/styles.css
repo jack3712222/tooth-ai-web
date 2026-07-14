@@ -924,6 +924,34 @@ h3 {
 .online-architecture-figure strong { color: #172033; font-size: 15px; }
 .online-architecture-figure a { width: fit-content; color: #0f766e; font-weight: 800; }
 
+.model-evidence-panel .segmented-actions,
+.architecture-diagram {
+  display: none !important;
+}
+
+.architecture-reading {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.architecture-reading article {
+  padding: 15px;
+  border-left: 3px solid #0f766e;
+  background: #f8fbfc;
+}
+
+.architecture-reading span,
+.architecture-reading strong,
+.architecture-reading p {
+  display: block;
+}
+
+.architecture-reading span { color: #0f766e; font-size: 12px; font-weight: 800; }
+.architecture-reading strong { margin-top: 6px; color: #172033; font-size: 15px; }
+.architecture-reading p { margin: 8px 0 0; color: #526174; font-size: 13px; line-height: 1.55; }
+
 .metric-guide-panel { margin-top: 18px; }
 .metric-guide-grid {
   display: grid;
@@ -2835,6 +2863,7 @@ input:disabled {
   }
 
   .metric-guide-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .architecture-reading { grid-template-columns: 1fr; }
 
   .simple-architecture {
     grid-template-columns: 1fr;

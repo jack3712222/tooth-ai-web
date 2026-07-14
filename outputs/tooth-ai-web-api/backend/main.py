@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import hmac
 import io
+import logging
 import os
 import secrets
 import sqlite3
@@ -37,12 +38,18 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
 LOCAL_TRUSTED_MODE = os.getenv("LOCAL_TRUSTED_MODE", "0") == "1"
 ENABLE_SLICER_BRIDGE = os.getenv("ENABLE_SLICER_BRIDGE", "0") == "1"
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(8 * 1024 * 1024)))
+MAX_IMAGE_PIXELS = int(os.getenv("MAX_IMAGE_PIXELS", str(30_000_000)))
 BACKUP_INTERVAL_SECONDS = int(os.getenv("BACKUP_INTERVAL_SECONDS", "300"))
 SESSION_TTL_SECONDS = int(os.getenv("SESSION_TTL_SECONDS", str(8 * 60 * 60)))
 last_backup_at = 0.0
+last_inference_error: str | None = None
 login_attempts: dict[str, list[float]] = {}
+guest_predict_attempts: dict[str, list[float]] = {}
 LOGIN_WINDOW_SECONDS = 5 * 60
 MAX_LOGIN_ATTEMPTS = 8
+GUEST_PREDICT_WINDOW_SECONDS = 10 * 60
+MAX_GUEST_PREDICT_ATTEMPTS = 12
+LOGGER = logging.getLogger("tooth_ai.api")
 
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 BACKUP_DIR.mkdir(parents=True, exist_ok=True)
@@ -140,15 +147,37 @@ def hash_token(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
-def login_allowed(client_id: str) -> bool:
+def request_client_id(request: Request) -> str:
+    forwarded = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+    return forwarded or (request.client.host if request.client else "unknown")
+
+
+def rate_limit_allowed(attempts_by_client: dict[str, list[float]], client_id: str, *, limit: int, window_seconds: int) -> bool:
     now = time.time()
-    attempts = [stamp for stamp in login_attempts.get(client_id, []) if now - stamp < LOGIN_WINDOW_SECONDS]
-    login_attempts[client_id] = attempts
-    return len(attempts) < MAX_LOGIN_ATTEMPTS
+    attempts = [stamp for stamp in attempts_by_client.get(client_id, []) if now - stamp < window_seconds]
+    attempts_by_client[client_id] = attempts
+    return len(attempts) < limit
+
+
+def login_allowed(client_id: str) -> bool:
+    return rate_limit_allowed(login_attempts, client_id, limit=MAX_LOGIN_ATTEMPTS, window_seconds=LOGIN_WINDOW_SECONDS)
 
 
 def record_failed_login(client_id: str) -> None:
     login_attempts.setdefault(client_id, []).append(time.time())
+
+
+def guest_prediction_allowed(client_id: str) -> bool:
+    return rate_limit_allowed(
+        guest_predict_attempts,
+        client_id,
+        limit=MAX_GUEST_PREDICT_ATTEMPTS,
+        window_seconds=GUEST_PREDICT_WINDOW_SECONDS,
+    )
+
+
+def record_guest_prediction(client_id: str) -> None:
+    guest_predict_attempts.setdefault(client_id, []).append(time.time())
 
 
 def log_audit(username: str, action: str, record_id: str | None = None) -> None:
@@ -249,11 +278,13 @@ def validated_image(content: bytes) -> tuple[str, str]:
     if len(content) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="file too large")
     try:
-        image = Image.open(io.BytesIO(content))
-        image.verify()
-    except (UnidentifiedImageError, OSError) as exc:
+        with Image.open(io.BytesIO(content)) as image:
+            image.load()
+            if image.width * image.height > MAX_IMAGE_PIXELS:
+                raise HTTPException(status_code=413, detail="image dimensions are too large")
+            image_type = image.format or ""
+    except (UnidentifiedImageError, OSError, Image.DecompressionBombError) as exc:
         raise HTTPException(status_code=415, detail="invalid image file") from exc
-    image_type = Image.open(io.BytesIO(content)).format or ""
     formats = {"JPEG": (".jpg", "image/jpeg"), "PNG": (".png", "image/png"), "WEBP": (".webp", "image/webp"), "BMP": (".bmp", "image/bmp")}
     if image_type not in formats:
         raise HTTPException(status_code=415, detail="unsupported image format")
@@ -278,17 +309,20 @@ def load_model(model_path: str):
     path = Path(model_path)
     if not path.exists():
         raise FileNotFoundError(f"model file not found: {path}")
-    try:
-        from ultralytics import YOLO
-    except ImportError as exc:
-        raise RuntimeError("ultralytics is not installed; run: pip install ultralytics") from exc
+    from ultralytics import YOLO
     return YOLO(str(path))
 
 
 def yolo_result(image_path: Path) -> tuple[str, float, list[dict[str, Any]], float]:
+    global last_inference_error
     start = time.perf_counter()
-    model = load_model(str(active_model_path))
-    results = model.predict(str(image_path), conf=0.25, verbose=False)
+    try:
+        model = load_model(str(active_model_path))
+        results = model.predict(str(image_path), conf=0.25, verbose=False)
+    except Exception as exc:
+        last_inference_error = f"{type(exc).__name__}: {exc}"
+        raise
+    last_inference_error = None
     inference_ms = round((time.perf_counter() - start) * 1000, 2)
     names = getattr(model, "names", {}) or {}
     boxes: list[dict[str, Any]] = []
@@ -354,7 +388,7 @@ def set_active_model(selection: ModelSelection, username: str = Depends(require_
 def login(credentials: LoginRequest, request: Request) -> dict[str, Any]:
     if not ADMIN_PASSWORD:
         raise HTTPException(status_code=503, detail="ADMIN_PASSWORD is not configured")
-    client_id = request.client.host if request.client else "unknown"
+    client_id = request_client_id(request)
     if not login_allowed(client_id):
         raise HTTPException(status_code=429, detail="too many login attempts; try again later")
     if not hmac.compare_digest(credentials.username, ADMIN_USERNAME) or not hmac.compare_digest(credentials.password, ADMIN_PASSWORD):
@@ -393,28 +427,52 @@ def slicer_status() -> dict[str, Any]:
         return {"connected": False, "error": str(exc)}
 
 
+@app.get("/admin/diagnostics")
+def diagnostics(username: str = Depends(require_editor)) -> dict[str, Any]:
+    model_loaded = False
+    model_error = None
+    try:
+        load_model(str(active_model_path))
+        model_loaded = True
+    except Exception as exc:
+        model_error = f"{type(exc).__name__}: {exc}"
+    return {
+        "active_model": active_model_path.name,
+        "model_exists": active_model_path.exists(),
+        "model_loaded": model_loaded,
+        "model_error": model_error,
+        "last_inference_error": last_inference_error,
+    }
+
+
 
 @app.post("/predict")
 async def predict(
+    request: Request,
     file: UploadFile = File(...),
     prediction: str | None = Form(default=None),
     confidence: float | None = Form(default=None),
     username: str | None = Depends(optional_editor),
 ) -> dict[str, Any]:
-    if not LOCAL_TRUSTED_MODE and username is None:
-        raise HTTPException(status_code=401, detail="editor authentication required")
+    is_guest = username is None
+    if is_guest:
+        client_id = request_client_id(request)
+        if not guest_prediction_allowed(client_id):
+            raise HTTPException(status_code=429, detail="guest demo limit reached; try again later")
+        record_guest_prediction(client_id)
     filename = file.filename or "image"
     record_id = uuid.uuid4().hex
-    content = await file.read()
+    content = await file.read(MAX_UPLOAD_BYTES + 1)
     suffix, image_type = validated_image(content)
     image_path = UPLOAD_DIR / f"{record_id}{suffix}"
     try:
         image_path.write_bytes(content)
         label, conf, boxes, inference_ms = yolo_result(image_path)
     except Exception as exc:
+        LOGGER.exception("Inference failed for request %s", record_id)
         if not ALLOW_MOCK:
             image_path.unlink(missing_ok=True)
-            raise HTTPException(status_code=503, detail=str(exc)) from exc
+            raise HTTPException(status_code=503, detail="inference temporarily unavailable") from exc
         label, conf, boxes, inference_ms = mock_yolo_result(prediction, confidence)
     slicer_result = call_slicer(image_path) if ENABLE_SLICER_BRIDGE else {"connected": False, "status": "disabled"}
 

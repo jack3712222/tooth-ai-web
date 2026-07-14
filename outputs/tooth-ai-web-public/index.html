@@ -394,6 +394,11 @@
               <a href="https://www.nature.com/articles/s41598-025-94936-9/figures/1" target="_blank" rel="noopener noreferrer">來源：Scientific Reports Fig. 1（YOLOv8 結構）</a>
             </figcaption>
           </figure>
+          <div class="architecture-reading" aria-label="YOLOv8m 架構閱讀指引">
+            <article><span>1. Backbone</span><strong>Conv、C2f、SPPF</strong><p>從輸入的 OPG X-ray 擷取不同尺度的影像特徵。</p></article>
+            <article><span>2. Neck</span><strong>PAN-FPN 特徵融合</strong><p>把位置細節與深層語意特徵整合，保留牙齒區域資訊。</p></article>
+            <article><span>3. Detect Head</span><strong>P3、P4、P5</strong><p>輸出框座標、類別與信心值；本模型只有蛀牙與阻生智齒兩類。</p></article>
+          </div>
           <div id="simpleArch" class="architecture-diagram simple-architecture">
             <canvas id="simpleArchCanvas" class="yolo-architecture-canvas" role="img" aria-label="YOLOv8m 簡化架構圖：輸入影像、Backbone、Neck 與 Detect Head"></canvas>
             <div class="architecture-caption"><strong>YOLOv8m 簡圖</strong><span>Input → Backbone (Conv / C2f / SPPF) → PAN-FPN Neck → Detect P3/P4/P5</span></div>
@@ -783,19 +788,10 @@
               </div>
             </div>
             <div class="pipeline">
-              <span class="done">影像預覽</span>
-              <span class="done">人工標註</span>
-              <span class="done">本機紀錄</span>
-              <span id="pipelineResult">實驗版</span>
-            </div>
-            <div class="explain-box">
-              <h4>標註區域預覽</h4>
-              <div class="heatmap">
-                <div class="heat hot"></div>
-                <div class="heat warm"></div>
-                <div class="heat cool"></div>
-              </div>
-            <p id="explainText">此區只呈現人工標註的視覺預覽；尚未連接 API 時不會產生或宣稱模型的信心指數。</p>
+              <span class="done">影像載入</span>
+              <span>模型推論</span>
+              <span>結果顯示</span>
+              <span id="pipelineResult">等待上傳</span>
             </div>
             <div class="report-box">
               <h4>Demo 報告</h4>
@@ -814,7 +810,6 @@
                 <span>2D X-ray 閱片畫面</span>
                 <strong id="slicerStatus">等待本機推論</strong>
               </div>
-              <button id="saveDemoBtn">儲存照片資訊</button>
             </div>
             <div class="slicer-viewer" aria-label="2D dental X-ray medical image viewer">
               <div class="slicer-toolbar">
@@ -835,29 +830,14 @@
           </div>
           <div class="panel image-info-panel">
             <h3>照片與推論資訊</h3>
-            <p class="visitor-note">照片資訊會先保留在目前瀏覽器；連線管理後可同步到本機後台。</p>
             <dl class="kv compact">
               <div><dt>影像檔名</dt><dd id="imageNameValue">sample-cavity.png</dd></div>
               <div><dt>影像來源</dt><dd id="imageTypeValue">demo sample</dd></div>
               <div><dt>影像大小</dt><dd id="imageSizeValue">--</dd></div>
               <div><dt>主要結果</dt><dd id="savedPredictionValue">尚未推論</dd></div>
               <div><dt>偵測信心</dt><dd id="savedConfidenceValue">--</dd></div>
-              <div><dt>儲存筆數</dt><dd id="recordCountValue">0</dd></div>
             </dl>
-            <div class="record-actions">
-              <button id="downloadRecordsBtn">下載 Demo 紀錄</button>
-              <button id="clearRecordsBtn">清除紀錄</button>
-            </div>
           </div>
-        </div>
-        <div class="panel records-panel">
-          <h3>已儲存 Demo 紀錄</h3>
-          <table>
-            <thead><tr><th>時間</th><th>照片</th><th>類型</th><th>主要結果</th><th>偵測信心</th><th>推論時間</th></tr></thead>
-            <tbody id="recordTableBody">
-              <tr><td colspan="6">尚未儲存 Demo 紀錄</td></tr>
-            </tbody>
-          </table>
         </div>
       </section>
 
