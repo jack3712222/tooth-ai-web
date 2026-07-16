@@ -1992,6 +1992,36 @@ th {
   border-right: 0;
 }
 
+.box-edit-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 9px;
+  background: #0f172a;
+  border-bottom: 1px solid #243044;
+}
+
+.box-edit-toolbar button {
+  min-height: 32px;
+  padding: 0 10px;
+  color: #e2e8f0;
+  background: #1e293b;
+  border: 1px solid #475569;
+  border-radius: 6px;
+  font-weight: 800;
+}
+
+.box-edit-toolbar button.primary {
+  color: #ffffff;
+  background: #0f766e;
+  border-color: #14b8a6;
+}
+
+.box-edit-toolbar button:disabled {
+  cursor: not-allowed;
+  opacity: .5;
+}
+
 .slicer-scene {
   position: relative;
   min-height: 0;
@@ -2039,6 +2069,39 @@ th {
   box-sizing: border-box;
   border: 3px solid #f97316;
   box-shadow: 0 0 12px rgba(249, 115, 22, .62);
+}
+
+.detection-box.editable {
+  cursor: move;
+  pointer-events: auto;
+}
+
+.detection-resize-handle,
+.detection-remove-button {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  color: #ffffff;
+  border: 1px solid #ffffff;
+  border-radius: 4px;
+  font-weight: 900;
+}
+
+.detection-resize-handle {
+  right: -9px;
+  bottom: -9px;
+  cursor: nwse-resize;
+  background: #0f172a;
+}
+
+.detection-remove-button {
+  right: -9px;
+  top: -9px;
+  cursor: pointer;
+  background: #b91c1c;
 }
 
 .detection-box.wisdom {

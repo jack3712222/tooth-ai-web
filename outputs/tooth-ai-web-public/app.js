@@ -15,6 +15,8 @@ let currentConfidence = 0;
 let localApiOnline = false;
 const localApiBase = String(window.TOOTH_AI_API_BASE || "http://127.0.0.1:8000").replace(/\/+$/, "");
 let currentPredictionBoxes = [];
+let currentApiRecordId = null;
+let demoBoxesDirty = false;
 const demoRecordKey = "toothAiDemoRecords";
 const accessModeKey = "toothAiAccessMode";
 const editorSessionKey = "toothAiEditorSession";
@@ -149,6 +151,10 @@ const els = {
   medicalViewerImage: document.querySelector("#medicalViewerImage"),
   medicalViewerPlaceholder: document.querySelector("#medicalViewerPlaceholder"),
   detectionOverlay: document.querySelector("#detectionOverlay"),
+  boxEditToolbar: document.querySelector("#boxEditToolbar"),
+  addCavityBoxBtn: document.querySelector("#addCavityBoxBtn"),
+  addWisdomBoxBtn: document.querySelector("#addWisdomBoxBtn"),
+  saveBoxEditsBtn: document.querySelector("#saveBoxEditsBtn"),
   checkSystemBtn: document.querySelector("#checkSystemBtn"),
   visitorModeBtn: document.querySelector("#visitorModeBtn"),
   editorModeBtn: document.querySelector("#editorModeBtn"),
@@ -346,6 +352,18 @@ function editorToken() {
 function editorHeaders() {
   const token = editorToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+function boxEditingAvailable() {
+  return Boolean(editorToken() && currentApiRecordId && !els.medicalImageStage?.hidden);
+}
+
+function updateBoxEditingUi() {
+  const available = boxEditingAvailable();
+  if (els.boxEditToolbar) els.boxEditToolbar.hidden = !available;
+  if (els.addCavityBoxBtn) els.addCavityBoxBtn.disabled = !available;
+  if (els.addWisdomBoxBtn) els.addWisdomBoxBtn.disabled = !available;
+  if (els.saveBoxEditsBtn) els.saveBoxEditsBtn.disabled = !available || !demoBoxesDirty;
 }
 
 async function fetchJsonWithTimeout(url, timeoutMs = 1800) {
@@ -760,6 +778,8 @@ function setAccessMode(mode) {
   }
   if (els.editorModeBtn) els.editorModeBtn.textContent = editorEnabled ? "管理中" : "管理登入";
   if (els.saveDemoBtn) els.saveDemoBtn.textContent = editorEnabled ? "同步到後台" : "儲存照片資訊";
+  updateBoxEditingUi();
+  renderDetectionBoxes();
   if (editorEnabled) {
     loadModelManagement();
     loadAdminDashboard();
@@ -1936,7 +1956,7 @@ function renderDetectionBoxes() {
   els.detectionOverlay.replaceChildren();
   const width = els.medicalViewerImage.naturalWidth || 1;
   const height = els.medicalViewerImage.naturalHeight || 1;
-  currentPredictionBoxes.forEach((box) => {
+  currentPredictionBoxes.forEach((box, index) => {
     const coords = normalizedBoxCoordinates(box, width, height);
     if (!coords) return;
     const [x1, y1, x2, y2] = coords;
@@ -1950,9 +1970,116 @@ function renderDetectionBoxes() {
     const label = document.createElement("span");
     label.textContent = `${detectionClassLabel(detectionClass)} ${(Number(box.confidence) * 100).toFixed(1)}%`;
     marker.appendChild(label);
+    if (boxEditingAvailable()) {
+      marker.classList.add("editable");
+      marker.dataset.boxIndex = String(index);
+      marker.addEventListener("pointerdown", (event) => startBoxPointerEdit(event, index, "move"));
+      const resizeHandle = document.createElement("button");
+      resizeHandle.type = "button";
+      resizeHandle.className = "detection-resize-handle";
+      resizeHandle.setAttribute("aria-label", "調整框選大小");
+      resizeHandle.addEventListener("pointerdown", (event) => startBoxPointerEdit(event, index, "resize"));
+      const removeButton = document.createElement("button");
+      removeButton.type = "button";
+      removeButton.className = "detection-remove-button";
+      removeButton.setAttribute("aria-label", "刪除此框選");
+      removeButton.textContent = "×";
+      removeButton.addEventListener("click", () => {
+        currentPredictionBoxes.splice(index, 1);
+        demoBoxesDirty = true;
+        renderDetectionBoxes();
+        updateBoxEditingUi();
+      });
+      marker.append(resizeHandle, removeButton);
+    }
     els.detectionOverlay.appendChild(marker);
   });
   updateImageInfoUi();
+  updateBoxEditingUi();
+}
+
+function startBoxPointerEdit(event, index, mode) {
+  if (!boxEditingAvailable() || event.button !== 0) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const stageRect = els.medicalImageStage.getBoundingClientRect();
+  const imageWidth = els.medicalViewerImage.naturalWidth || 1;
+  const imageHeight = els.medicalViewerImage.naturalHeight || 1;
+  const original = normalizedBoxCoordinates(currentPredictionBoxes[index], imageWidth, imageHeight);
+  if (!original) return;
+  const startX = event.clientX;
+  const startY = event.clientY;
+  const move = (pointerEvent) => {
+    const dx = ((pointerEvent.clientX - startX) / stageRect.width) * imageWidth;
+    const dy = ((pointerEvent.clientY - startY) / stageRect.height) * imageHeight;
+    let [x1, y1, x2, y2] = original;
+    if (mode === "move") {
+      const boxWidth = x2 - x1;
+      const boxHeight = y2 - y1;
+      x1 = Math.max(0, Math.min(imageWidth - boxWidth, x1 + dx));
+      y1 = Math.max(0, Math.min(imageHeight - boxHeight, y1 + dy));
+      x2 = x1 + boxWidth;
+      y2 = y1 + boxHeight;
+    } else {
+      x2 = Math.max(x1 + 8, Math.min(imageWidth, x2 + dx));
+      y2 = Math.max(y1 + 8, Math.min(imageHeight, y2 + dy));
+    }
+    currentPredictionBoxes[index] = { ...currentPredictionBoxes[index], xyxy: [x1, y1, x2, y2] };
+    demoBoxesDirty = true;
+    renderDetectionBoxes();
+  };
+  const end = () => {
+    window.removeEventListener("pointermove", move);
+    window.removeEventListener("pointerup", end);
+  };
+  window.addEventListener("pointermove", move);
+  window.addEventListener("pointerup", end, { once: true });
+}
+
+function addDetectionBox(detectionClass) {
+  if (!boxEditingAvailable()) return;
+  const width = els.medicalViewerImage.naturalWidth || 1;
+  const height = els.medicalViewerImage.naturalHeight || 1;
+  currentPredictionBoxes.push({
+    class: detectionClass,
+    confidence: 0.5,
+    xyxy: [width * 0.35, height * 0.35, width * 0.65, height * 0.65],
+  });
+  demoBoxesDirty = true;
+  renderDetectionBoxes();
+}
+
+async function saveBoxEdits() {
+  if (!boxEditingAvailable() || !demoBoxesDirty) return;
+  if (els.saveBoxEditsBtn) els.saveBoxEditsBtn.disabled = true;
+  const payload = {
+    boxes: currentPredictionBoxes.map((box) => ({
+      class: normalizeDetectionClass(box.class ?? box.label ?? box.name ?? box.class_name),
+      confidence: Math.max(0, Math.min(1, Number(box.confidence) || 0)),
+      xyxy: normalizedBoxCoordinates(box, els.medicalViewerImage.naturalWidth || 1, els.medicalViewerImage.naturalHeight || 1),
+    })).filter((box) => Array.isArray(box.xyxy)),
+  };
+  try {
+    const response = await fetch(`${localApiBase}/records/${currentApiRecordId}/boxes`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...editorHeaders() },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const record = await response.json();
+    currentPredictionBoxes = Array.isArray(record.boxes) ? record.boxes : currentPredictionBoxes;
+    selectedDemo = normalizePredictionLabel(record.prediction || selectedDemo);
+    currentConfidence = clampConfidence((Number(record.confidence) || 0) * 100);
+    demoBoxesDirty = false;
+    applyResultToUi(selectedDemo, currentConfidence, "已儲存框選修改");
+    renderDetectionBoxes();
+    appendLog(`[edit] boxes saved record=${currentApiRecordId}`);
+  } catch (error) {
+    window.alert("框選修改儲存失敗，請確認編輯登入仍有效。");
+    appendLog(`[edit] boxes save failed: ${error.message}`);
+  } finally {
+    updateBoxEditingUi();
+  }
 }
 
 function resetDemoInferenceState() {
@@ -1966,6 +2093,8 @@ function resetDemoInferenceState() {
   if (els.manualPredictionInput) els.manualPredictionInput.value = "蛀牙";
   if (els.manualConfidenceInput) els.manualConfidenceInput.value = "0";
   currentPredictionBoxes = [];
+  currentApiRecordId = null;
+  demoBoxesDirty = false;
   renderProbabilities();
   updateImageInfoUi();
   updateSlicerViewer("未偵測到目標", 0, "等待本機推論");
@@ -2116,6 +2245,8 @@ async function runApiPrediction(apiBase, file) {
     selectedDemo = normalizePredictionLabel(result.prediction || selectedDemo);
     currentConfidence = clampConfidence((Number(result.confidence) || 0) * 100);
     currentPredictionBoxes = Array.isArray(result.boxes) ? result.boxes : [];
+    currentApiRecordId = result.id || null;
+    demoBoxesDirty = false;
     renderDetectionBoxes();
     lastInferenceMs = `${Number(result.inference_ms || 0).toFixed(0)} ms`;
     if (els.inferenceTime) els.inferenceTime.textContent = lastInferenceMs;
@@ -2221,6 +2352,8 @@ els.imageUpload.addEventListener("change", (event) => {
   }
   currentUploadFile = file;
   currentPredictionBoxes = [];
+  currentApiRecordId = null;
+  demoBoxesDirty = false;
   selectedDemo = "";
   currentConfidence = 0;
   if (currentPreviewUrl) {
@@ -2365,6 +2498,9 @@ els.dataNextBtn?.addEventListener("click", () => {
 els.exportReportBtn?.addEventListener("click", exportReport);
 els.jumpDemoBtn?.addEventListener("click", () => showTab("demo"));
 els.applyEditBtn?.addEventListener("click", applyEditedResult);
+els.addCavityBoxBtn?.addEventListener("click", () => addDetectionBox("cavity"));
+els.addWisdomBoxBtn?.addEventListener("click", () => addDetectionBox("wisdom_tooth"));
+els.saveBoxEditsBtn?.addEventListener("click", saveBoxEdits);
 els.saveDemoBtn?.addEventListener("click", saveDemoRecord);
 els.downloadRecordsBtn?.addEventListener("click", downloadDemoRecords);
 els.clearRecordsBtn?.addEventListener("click", clearDemoRecords);
